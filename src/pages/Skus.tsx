@@ -268,17 +268,21 @@ export default function Skus() {
           </SelectContent>
         </Select>
         <Select value={abc} onValueChange={setAbc}>
-          <SelectTrigger className="h-9 w-[110px]"><SelectValue placeholder="ABC" /></SelectTrigger>
+          <SelectTrigger className="h-9 w-[140px]"><SelectValue placeholder="Value" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All ABC</SelectItem>
-            {["A", "B", "C"].map((c) => <SelectItem key={c} value={c}>Class {c}</SelectItem>)}
+            <SelectItem value="all">All values</SelectItem>
+            <SelectItem value="A">High value</SelectItem>
+            <SelectItem value="B">Mid value</SelectItem>
+            <SelectItem value="C">Low value</SelectItem>
           </SelectContent>
         </Select>
         <Select value={xyz} onValueChange={setXyz}>
-          <SelectTrigger className="h-9 w-[110px]"><SelectValue placeholder="XYZ" /></SelectTrigger>
+          <SelectTrigger className="h-9 w-[150px]"><SelectValue placeholder="Demand" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All XYZ</SelectItem>
-            {["X", "Y", "Z"].map((c) => <SelectItem key={c} value={c}>Class {c}</SelectItem>)}
+            <SelectItem value="all">All demand</SelectItem>
+            <SelectItem value="X">Steady</SelectItem>
+            <SelectItem value="Y">Variable</SelectItem>
+            <SelectItem value="Z">Lumpy</SelectItem>
           </SelectContent>
         </Select>
         <div className="flex items-center gap-2 ml-auto px-2">
