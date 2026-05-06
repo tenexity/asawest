@@ -50,9 +50,10 @@ Deno.serve(async (req) => {
         // create draft PO + line item
         const productId = a.product_id ?? ev.product_id;
         const branchId = a.branch_id ?? ev.branch_id;
-        const { data: sp } = await sb.from("supplier_products").select("supplier_id, cost").eq("product_id", productId).eq("is_primary", true).limit(1).maybeSingle();
-        const { data: anySp } = sp ? { data: sp } : await sb.from("supplier_products").select("supplier_id, cost").eq("product_id", productId).limit(1).maybeSingle();
-        const supplier = sp ?? anySp;
+        let supplier: any = (await sb.from("supplier_products").select("supplier_id, cost").eq("product_id", productId).eq("is_primary", true).limit(1).maybeSingle()).data;
+        if (!supplier) {
+          supplier = (await sb.from("supplier_products").select("supplier_id, cost").eq("product_id", productId).limit(1).maybeSingle()).data;
+        }
         if (supplier) {
           const today = new Date().toISOString().slice(0, 10);
           const expected = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
