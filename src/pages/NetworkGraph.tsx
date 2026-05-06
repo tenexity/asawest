@@ -559,8 +559,31 @@ export default function NetworkGraph() {
                         <TableHead>Description</TableHead>
                         <TableHead>Branch</TableHead>
                         <TableHead className="text-right">On Hand</TableHead>
-                        <TableHead className="text-right">Days→Out</TableHead>
-                        <TableHead className="text-right">Units Short</TableHead>
+                        <TableHead className="text-right">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help underline decoration-dotted">Days→Out</span>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs text-xs">
+                              <p className="font-semibold mb-1">Days until stockout</p>
+                              <p>Projected day when on-hand inventory hits zero, given:</p>
+                              <p className="mt-1 font-mono">on_hand − (avg_daily_demand × day) + on_order (arrives at lead_time + delay)</p>
+                              <p className="mt-1">Demand uses 90-day average per branch, with a ×2.5 boost in active seasonal months.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableHead>
+                        <TableHead className="text-right">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help underline decoration-dotted">Units Short</span>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs text-xs">
+                              <p className="font-semibold mb-1">Units short over horizon</p>
+                              <p className="font-mono">max(0, ⌈avg_daily_demand × horizon⌉ − on_hand − on_order)</p>
+                              <p className="mt-1">Horizon = lead_time + delay_days + 14 days of buffer demand. This is the gap a transfer or expedite PO needs to cover.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableHead>
                         <TableHead className="text-right">Revenue Risk</TableHead>
                         <TableHead>Recommended Action</TableHead>
                       </TableRow>
@@ -573,9 +596,33 @@ export default function NetworkGraph() {
                           <TableCell>{r.branch_name}</TableCell>
                           <TableCell className="text-right">{r.on_hand}</TableCell>
                           <TableCell className="text-right">
-                            <Badge variant={r.is_stockout ? "destructive" : "outline"}>{r.days_to_stockout}</Badge>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant={r.is_stockout ? "destructive" : "outline"} className="cursor-help">{r.days_to_stockout}</Badge>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs text-xs">
+                                <p className="font-semibold mb-1">{r.is_stockout ? "Projected stockout" : "Below safety stock"} on day {r.days_to_stockout}</p>
+                                <p>On hand: <b>{r.on_hand}</b> · Safety stock: <b>{r.safety_stock}</b></p>
+                                <p>Avg daily demand: <b>{r.avg_daily_demand}</b> units (90-day, branch-level)</p>
+                                <p className="mt-1">Replenishment PO arrives at lead time + {simResult.summary.delay_days}d delay. {r.is_stockout ? "Inflow is too late or too small to prevent zero." : "Inventory dips below safety stock but doesn't hit zero in horizon."}</p>
+                              </TooltipContent>
+                            </Tooltip>
                           </TableCell>
-                          <TableCell className="text-right">{r.units_short}</TableCell>
+                          <TableCell className="text-right">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="cursor-help underline decoration-dotted">{r.units_short}</span>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs text-xs">
+                                <p className="font-semibold mb-1">Shortfall over horizon</p>
+                                <p className="font-mono">⌈{r.avg_daily_demand} × horizon⌉ − {r.on_hand} − on_order = <b>{r.units_short}</b></p>
+                                <p className="mt-1">At ${r.unit_price.toFixed(2)}/unit → ${r.revenue_at_risk.toLocaleString()} revenue exposed.</p>
+                                {r.transfer_branch && (
+                                  <p className="mt-1 text-emerald-600">{r.transfer_units} units of surplus available at {r.transfer_branch}.</p>
+                                )}
+                              </TooltipContent>
+                            </Tooltip>
+                          </TableCell>
                           <TableCell className="text-right font-medium">${r.revenue_at_risk.toLocaleString()}</TableCell>
                           <TableCell className="text-xs">
                             {r.recommended_action}
