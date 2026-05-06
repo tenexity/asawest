@@ -59,6 +59,24 @@ type Row = {
 
 const STATUSES: Status[] = ["Healthy", "Watch", "At Risk", "Stockout", "Excess"];
 
+const ABC_LABEL: Record<string, string> = {
+  A: "high value (top ~20% of revenue, 98% target service level)",
+  B: "mid value (next ~30% of revenue, 95% target service level)",
+  C: "low value / long tail (90% target service level)",
+};
+const XYZ_LABEL: Record<string, string> = {
+  X: "steady, predictable demand",
+  Y: "variable or seasonal demand",
+  Z: "lumpy / intermittent demand — hard to forecast",
+};
+function combinedHint(abc: string, xyz: string): string {
+  if (abc === "A" && xyz === "X") return "Tight stock, frequent reorders — keep this one humming.";
+  if (abc === "A" && xyz === "Z") return "Important but unpredictable — needs extra safety stock.";
+  if (abc === "C" && xyz === "Z") return "Low value and lumpy — consider order-on-demand or substitution.";
+  if (abc === "B" && xyz === "Y") return "Mid-tier seasonal — watch peak windows closely.";
+  return "Stocking strategy is set from this combination.";
+}
+
 async function fetchAll<T>(
   build: (from: number, to: number) => ReturnType<ReturnType<typeof supabase.from>["select"]>,
 ): Promise<T[]> {
@@ -341,7 +359,22 @@ export default function Skus() {
                   <TableCell className="font-mono text-xs">{r.sku}</TableCell>
                   <TableCell className="max-w-[320px] truncate">{r.description}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{r.category}</TableCell>
-                  <TableCell className="text-xs">{r.abc}/{r.xyz}</TableCell>
+                  <TableCell className="text-xs" onClick={(e) => e.stopPropagation()}>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button type="button" className="underline decoration-dotted underline-offset-2 hover:text-foreground">
+                            {r.abc}/{r.xyz}
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="max-w-xs text-xs">
+                          <div><span className="font-medium">{r.abc}</span> — {ABC_LABEL[r.abc] ?? "value class"}</div>
+                          <div><span className="font-medium">{r.xyz}</span> — {XYZ_LABEL[r.xyz] ?? "demand class"}</div>
+                          <div className="mt-1 text-muted-foreground">{combinedHint(r.abc, r.xyz)}</div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">{r.totalOnHand.toLocaleString()}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {r.daysOfSupply === null ? "—" : Math.round(r.daysOfSupply)}
