@@ -303,11 +303,30 @@ export default function NetworkGraph() {
 
   return (
     <div className="space-y-6 p-6">
-      <header>
-        <h1 className="text-2xl font-bold tracking-tight">Network Graph</h1>
-        <p className="text-sm text-muted-foreground italic mt-1">
-          Every node you see has consequences. The simulator below shows them.
-        </p>
+      <header className="space-y-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Network Graph</h1>
+          <p className="text-sm text-muted-foreground italic mt-1">
+            See how money and product flow across your supply chain — and what breaks when one link fails.
+          </p>
+        </div>
+        <Card className="bg-muted/30">
+          <CardContent className="pt-5 pb-5 text-sm space-y-2">
+            <div className="font-medium">What am I looking at?</div>
+            <p className="text-muted-foreground">
+              A left-to-right map of your business: <span className="font-medium text-foreground">Suppliers</span> ship product
+              to <span className="font-medium text-foreground">Categories</span>, which stock your{" "}
+              <span className="font-medium text-foreground">Branches</span>, which sell to{" "}
+              <span className="font-medium text-foreground">Customer Types</span>. Thicker lines = more dollars flowing through that link.
+            </p>
+            <div className="font-medium pt-2">Why it matters</div>
+            <ul className="list-disc pl-5 text-muted-foreground space-y-1">
+              <li>Spot <span className="font-medium text-foreground">concentration risk</span> — suppliers or branches your business leans on heavily.</li>
+              <li>Use the <span className="font-medium text-foreground">Disruption Simulator</span> below to model "what if Supplier X is delayed 7 days?" and see exact SKUs, branches, and revenue at risk.</li>
+              <li>Click any node to inspect its connections; drag to rearrange the layout for a clearer view. Nodes reflect your live data — they aren't manually added or deleted here.</li>
+            </ul>
+          </CardContent>
+        </Card>
       </header>
 
       {/* Filters */}
