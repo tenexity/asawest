@@ -391,11 +391,15 @@ export default function NetworkGraph() {
           <ReactFlow
             nodes={nodes}
             edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
             fitView
             onNodeClick={(_, n: any) =>
               setSelected({ label: n.data.label, meta: n.data })
             }
             nodesDraggable
+            nodesConnectable={false}
+            elementsSelectable
             proOptions={{ hideAttribution: true }}
           >
             <Background />
