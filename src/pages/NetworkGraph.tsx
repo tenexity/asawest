@@ -144,9 +144,28 @@ export default function NetworkGraph() {
     const usedCustomers = new Set<string>();
 
     // Edges: supplier -> category
-    for (const [k, w] of Object.entries(graph.supplier_category)) {
-      const [sid, cat] = k.split("|");
+    // When a single category is selected, only show suppliers that
+    // contribute meaningfully (top 10 by spend AND >= 2% of category total)
+    // so the graph isn't a wall of noise from every supplier that carries 1 SKU.
+    const supplierCatEntries = Object.entries(graph.supplier_category)
+      .map(([k, w]) => {
+        const [sid, cat] = k.split("|");
+        return { k, sid, cat, w };
+      });
+    let allowedSC = new Set(supplierCatEntries.map((e) => e.k));
+    if (filterCategory !== "all") {
+      const inCat = supplierCatEntries.filter((e) => e.cat === filterCategory);
+      const totalCatSpend = inCat.reduce((s, e) => s + e.w, 0);
+      const minShare = totalCatSpend * 0.02;
+      const top = inCat
+        .filter((e) => e.w >= minShare)
+        .sort((a, b) => b.w - a.w)
+        .slice(0, 10);
+      allowedSC = new Set(top.map((e) => e.k));
+    }
+    for (const { k, sid, cat, w } of supplierCatEntries) {
       if (!passCat(cat)) continue;
+      if (!allowedSC.has(k)) continue;
       if (criticalOnly && w < criticalThreshold) continue;
       usedSuppliers.add(sid);
       usedCategories.add(cat);
