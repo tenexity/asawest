@@ -114,13 +114,17 @@ export default function NetworkGraph() {
     const passBranch = (b: string) => filterBranch === "all" || b === filterBranch;
     const passCat = (c: string) => filterCategory === "all" || c === filterCategory;
 
-    // Compute weight thresholds for "critical only"
-    const allWeights = [
-      ...Object.values(graph.supplier_category),
-      ...Object.values(graph.category_branch),
-      ...Object.values(graph.branch_customer),
-    ].sort((a, b) => b - a);
-    const criticalThreshold = allWeights[Math.floor(allWeights.length * 0.2)] ?? 0;
+    // Per-tier "critical" thresholds. The three edge types are on very different
+    // dollar scales (PO spend vs. inventory value vs. sales revenue), so a single
+    // global threshold wipes out two of the three tiers. Compute top-20% per tier.
+    const topPct = (vals: number[], pct = 0.2) => {
+      if (!vals.length) return 0;
+      const sorted = [...vals].sort((a, b) => b - a);
+      return sorted[Math.floor(sorted.length * pct)] ?? 0;
+    };
+    const scThreshold = topPct(Object.values(graph.supplier_category));
+    const cbThreshold = topPct(Object.values(graph.category_branch));
+    const bcThreshold = topPct(Object.values(graph.branch_customer));
 
     const colSupplier = 0;
     const colCategory = 380;
@@ -166,7 +170,7 @@ export default function NetworkGraph() {
     for (const { k, sid, cat, w } of supplierCatEntries) {
       if (!passCat(cat)) continue;
       if (!allowedSC.has(k)) continue;
-      if (criticalOnly && w < criticalThreshold) continue;
+      if (criticalOnly && w < scThreshold) continue;
       usedSuppliers.add(sid);
       usedCategories.add(cat);
       edges.push({
@@ -184,7 +188,7 @@ export default function NetworkGraph() {
     for (const [k, w] of Object.entries(graph.category_branch)) {
       const [cat, bid] = k.split("|");
       if (!passCat(cat) || !passBranch(bid)) continue;
-      if (criticalOnly && w < criticalThreshold) continue;
+      if (criticalOnly && w < cbThreshold) continue;
       usedCategories.add(cat);
       usedBranches.add(bid);
       edges.push({
@@ -201,7 +205,7 @@ export default function NetworkGraph() {
     for (const [k, w] of Object.entries(graph.branch_customer)) {
       const [bid, ct] = k.split("|");
       if (!passBranch(bid)) continue;
-      if (criticalOnly && w < criticalThreshold) continue;
+      if (criticalOnly && w < bcThreshold) continue;
       usedBranches.add(bid);
       usedCustomers.add(ct);
       edges.push({
@@ -232,16 +236,28 @@ export default function NetworkGraph() {
         style: nodeStyle(COL.supplier.bg, COL.supplier.text),
       })
     );
-    catList.forEach((c, i) =>
+    const catTotals = new Map<string, number>();
+    for (const [k, w] of Object.entries(graph.category_branch)) {
+      const [cat] = k.split("|");
+      catTotals.set(cat, (catTotals.get(cat) ?? 0) + w);
+    }
+    const fmtK = (n: number) =>
+      n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : `$${Math.round(n / 1000)}k`;
+    catList.forEach((c, i) => {
+      const total = catTotals.get(c) ?? 0;
       nodes.push({
         id: `c-${c}`,
         position: { x: colCategory, y: space(catList.length, i) },
-        data: { label: `📦 ${c}`, type: "category", meta: { category: c } },
+        data: {
+          label: `📦 ${c}  ·  ${fmtK(total)}`,
+          type: "category",
+          meta: { category: c, total_flow: total },
+        },
         sourcePosition: Position.Right,
         targetPosition: Position.Left,
         style: nodeStyle(COL.category.bg, COL.category.text),
-      })
-    );
+      });
+    });
     brList.forEach((b, i) =>
       nodes.push({
         id: `b-${b.id}`,
