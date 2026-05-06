@@ -44,12 +44,30 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    // Helper: page through tables to bypass the 1000-row default limit
+    async function fetchAll<T = any>(table: string, columns: string, filter?: (q: any) => any): Promise<T[]> {
+      const pageSize = 1000;
+      let from = 0;
+      const out: T[] = [];
+      while (true) {
+        let q: any = supabase.from(table).select(columns).range(from, from + pageSize - 1);
+        if (filter) q = filter(q);
+        const { data, error } = await q;
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        out.push(...(data as T[]));
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+      return out;
+    }
+
     // Load supplier info
     const { data: supplier } = await supabase.from("suppliers").select("*").eq("id", supplier_id).single();
     if (!supplier) throw new Error("Supplier not found");
 
     // Products from this supplier
-    const { data: sp } = await supabase.from("supplier_products").select("product_id").eq("supplier_id", supplier_id);
+    const sp = await fetchAll<any>("supplier_products", "product_id", (q) => q.eq("supplier_id", supplier_id));
     const productIds = (sp ?? []).map((r: any) => r.product_id);
     if (productIds.length === 0) {
       return new Response(JSON.stringify({ at_risk: [], summary: emptySummary(supplier.name, delay_days) }), {
@@ -57,15 +75,31 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Chunked .in() helper to avoid 1000-row limit and URL-length issues
+    async function fetchByIds<T = any>(table: string, columns: string, ids: string[], col = "id", extra?: (q: any) => any): Promise<T[]> {
+      const out: T[] = [];
+      const chunk = 200;
+      for (let i = 0; i < ids.length; i += chunk) {
+        const slice = ids.slice(i, i + chunk);
+        const rows = await fetchAll<T>(table, columns, (q) => {
+          let qq = q.in(col, slice);
+          if (extra) qq = extra(qq);
+          return qq;
+        });
+        out.push(...rows);
+      }
+      return out;
+    }
+
     // Products
-    const { data: products } = await supabase.from("products").select("*").in("id", productIds);
+    const products = await fetchByIds<any>("products", "*", productIds, "id");
     const prodMap = new Map((products ?? []).map((p: any) => [p.id, p]));
 
-    // Substitutes for these products (from products table)
+    // Substitutes
     const substituteIds = (products ?? []).map((p: any) => p.substitute_product_id).filter(Boolean);
-    const { data: subProducts } = substituteIds.length
-      ? await supabase.from("products").select("id, sku, description").in("id", substituteIds)
-      : { data: [] };
+    const subProducts = substituteIds.length
+      ? await fetchByIds<any>("products", "id, sku, description", substituteIds, "id")
+      : [];
     const subMap = new Map((subProducts ?? []).map((p: any) => [p.id, p]));
 
     // Branches
@@ -73,19 +107,20 @@ Deno.serve(async (req) => {
     const branchMap = new Map((branches ?? []).map((b: any) => [b.id, b]));
 
     // Inventory for these products at all branches
-    const { data: inventory } = await supabase
-      .from("inventory_levels")
-      .select("*")
-      .in("product_id", productIds);
+    const inventory = await fetchByIds<any>("inventory_levels", "*", productIds, "product_id");
 
     // 90 days sales for these products
     const since = new Date();
     since.setDate(since.getDate() - 90);
-    const { data: sales } = await supabase
-      .from("sales_history")
-      .select("product_id, branch_id, quantity, sale_date")
-      .in("product_id", productIds)
-      .gte("sale_date", since.toISOString().slice(0, 10));
+    const sinceStr = since.toISOString().slice(0, 10);
+    const sales = await fetchByIds<any>(
+      "sales_history",
+      "product_id, branch_id, quantity, sale_date",
+      productIds,
+      "product_id",
+      (q) => q.gte("sale_date", sinceStr)
+    );
+    console.log(`[sim] supplier=${supplier.name} products=${productIds.length} inv=${inventory.length} sales=${sales.length} branches=${branches?.length}`);
 
     // Build per (product, branch) avg daily demand
     const demandMap = new Map<string, number>();
