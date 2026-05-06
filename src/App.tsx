@@ -10,6 +10,7 @@ import Skus from "./pages/Skus";
 import SkuDetail from "./pages/SkuDetail";
 import ConnectData from "./pages/ConnectData";
 import Placeholder from "./pages/Placeholder";
+import Reorder from "./pages/Reorder";
 import NetworkGraph from "./pages/NetworkGraph";
 import Agents from "./pages/Agents";
 import Chat from "./pages/Chat";
@@ -32,7 +33,8 @@ const App = () => (
               <Route path="/" element={<Dashboard />} />
               <Route path="/skus" element={<Skus />} />
               <Route path="/skus/:id" element={<SkuDetail />} />
-              <Route path="/reorder" element={<Placeholder title="Reorder Recommendations" />} />
+              <Route path="/reorder" element={<Reorder />} />
+              <Route path="/reorders" element={<Reorder />} />
               <Route path="/network" element={<NetworkGraph />} />
               <Route path="/graph" element={<NetworkGraph />} />
               <Route path="/agents" element={<Agents />} />
