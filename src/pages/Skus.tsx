@@ -100,16 +100,19 @@ type SortKey = "sku" | "description" | "category" | "abc" | "totalOnHand" | "day
 export default function Skus() {
   const { branchId } = useBranch();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [inv, setInv] = useState<Inv[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const initialFilter = searchParams.get("filter") ?? "";
   const [q, setQ] = useState("");
   const [category, setCategory] = useState<string>("all");
   const [abc, setAbc] = useState<string>("all");
   const [xyz, setXyz] = useState<string>("all");
   const [problemsOnly, setProblemsOnly] = useState(false);
+  const [deadOnly, setDeadOnly] = useState(initialFilter === "dead");
   const [sortKey, setSortKey] = useState<SortKey>("status");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
