@@ -247,10 +247,16 @@ async function runCore(supabase: any, startedAt: number) {
   });
   await chunkInsert(supabase, "products", productRows, 1000);
 
-  const { data: insertedProducts } = await supabase
-    .from("products")
-    .select("id, sku, category, subcategory, abc_class, seasonality_pattern, is_phase_down, is_intermittent, unit_cost")
-    .throwOnError();
+  const insertedProducts: any[] = [];
+  for (let off = 0; ; off += 1000) {
+    const { data: page } = await supabase
+      .from("products")
+      .select("id, sku, category, subcategory, abc_class, seasonality_pattern, is_phase_down, is_intermittent, unit_cost")
+      .order("sku").range(off, off + 999).throwOnError();
+    if (!page || page.length === 0) break;
+    insertedProducts.push(...page);
+    if (page.length < 1000) break;
+  }
   log.push(`products: ${insertedProducts.length}`);
 
   // Phase-down links
