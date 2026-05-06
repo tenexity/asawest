@@ -143,7 +143,7 @@ export default function Chat() {
               </div>
             )}
             {messages.map((m, i) => (
-              <MessageBubble key={i} msg={m} />
+              <MessageBubble key={i} msg={m} onAskFollowUp={send} />
             ))}
             {sending && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
