@@ -293,7 +293,39 @@ export default function Skus() {
                 {head("SKU", "sku")}
                 {head("Description", "description")}
                 {head("Category", "category")}
-                <TableHead>ABC/XYZ</TableHead>
+                <TableHead>
+                  <span className="inline-flex items-center gap-1">
+                    ABC/XYZ
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="What is ABC/XYZ?">
+                            <Info className="h-3 w-3" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="max-w-xs text-xs">
+                          Two-axis SKU classification used to set service levels and stocking strategy.
+                          <div className="mt-1">
+                            <span className="font-medium">ABC — value / volume:</span>
+                            <ul className="list-disc pl-4 space-y-0.5">
+                              <li><span className="font-medium">A</span>: top ~20% by revenue (tight control, 98% service level)</li>
+                              <li><span className="font-medium">B</span>: next ~30% (95% service level)</li>
+                              <li><span className="font-medium">C</span>: long tail (90% service level)</li>
+                            </ul>
+                          </div>
+                          <div className="mt-1">
+                            <span className="font-medium">XYZ — demand predictability:</span>
+                            <ul className="list-disc pl-4 space-y-0.5">
+                              <li><span className="font-medium">X</span>: steady, easy to forecast</li>
+                              <li><span className="font-medium">Y</span>: variable / seasonal</li>
+                              <li><span className="font-medium">Z</span>: lumpy or intermittent — hardest to forecast</li>
+                            </ul>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </span>
+                </TableHead>
                 {head("On-hand", "totalOnHand", "right")}
                 {head("Days of Supply", "daysOfSupply", "right")}
                 {head("Status", "status")}
