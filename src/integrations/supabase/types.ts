@@ -177,6 +177,38 @@ export type Database = {
           },
         ]
       }
+      purchase_order_items: {
+        Row: {
+          id: string
+          po_id: string
+          product_id: string
+          quantity: number
+          unit_cost: number
+        }
+        Insert: {
+          id?: string
+          po_id: string
+          product_id: string
+          quantity: number
+          unit_cost?: number
+        }
+        Update: {
+          id?: string
+          po_id?: string
+          product_id?: string
+          quantity?: number
+          unit_cost?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_order_items_po_id_fkey"
+            columns: ["po_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       purchase_orders: {
         Row: {
           branch_id: string
@@ -222,6 +254,102 @@ export type Database = {
           },
         ]
       }
+      reorder_recommendations: {
+        Row: {
+          avg_daily_demand: number
+          branch_id: string
+          computed_at: string
+          days_of_supply: number | null
+          demand_stddev: number
+          financial_impact: number
+          id: string
+          lead_time_days: number
+          lead_time_var_days: number
+          moq: number
+          on_hand: number
+          on_order: number
+          product_id: string
+          rebate_bumped_qty: number | null
+          rebate_opportunity: boolean
+          rebate_threshold: number | null
+          recent_max_day: number
+          reorder_point: number
+          safety_stock: number
+          seasonality_boost: boolean
+          seasonality_pattern: string | null
+          service_level: number
+          snoozed_until: string | null
+          status: Database["public"]["Enums"]["rec_status"]
+          suggested_qty: number
+          supplier_id: string | null
+          unit_cost: number
+          urgency: Database["public"]["Enums"]["urgency_level"]
+          z_score: number
+        }
+        Insert: {
+          avg_daily_demand?: number
+          branch_id: string
+          computed_at?: string
+          days_of_supply?: number | null
+          demand_stddev?: number
+          financial_impact?: number
+          id?: string
+          lead_time_days?: number
+          lead_time_var_days?: number
+          moq?: number
+          on_hand?: number
+          on_order?: number
+          product_id: string
+          rebate_bumped_qty?: number | null
+          rebate_opportunity?: boolean
+          rebate_threshold?: number | null
+          recent_max_day?: number
+          reorder_point?: number
+          safety_stock?: number
+          seasonality_boost?: boolean
+          seasonality_pattern?: string | null
+          service_level?: number
+          snoozed_until?: string | null
+          status?: Database["public"]["Enums"]["rec_status"]
+          suggested_qty?: number
+          supplier_id?: string | null
+          unit_cost?: number
+          urgency: Database["public"]["Enums"]["urgency_level"]
+          z_score?: number
+        }
+        Update: {
+          avg_daily_demand?: number
+          branch_id?: string
+          computed_at?: string
+          days_of_supply?: number | null
+          demand_stddev?: number
+          financial_impact?: number
+          id?: string
+          lead_time_days?: number
+          lead_time_var_days?: number
+          moq?: number
+          on_hand?: number
+          on_order?: number
+          product_id?: string
+          rebate_bumped_qty?: number | null
+          rebate_opportunity?: boolean
+          rebate_threshold?: number | null
+          recent_max_day?: number
+          reorder_point?: number
+          safety_stock?: number
+          seasonality_boost?: boolean
+          seasonality_pattern?: string | null
+          service_level?: number
+          snoozed_until?: string | null
+          status?: Database["public"]["Enums"]["rec_status"]
+          suggested_qty?: number
+          supplier_id?: string | null
+          unit_cost?: number
+          urgency?: Database["public"]["Enums"]["urgency_level"]
+          z_score?: number
+        }
+        Relationships: []
+      }
       sales_history: {
         Row: {
           branch_id: string
@@ -266,6 +394,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      saved_simulations: {
+        Row: {
+          created_at: string
+          delay_days: number
+          id: string
+          name: string
+          result: Json
+          supplier_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          delay_days: number
+          id?: string
+          name: string
+          result: Json
+          supplier_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          delay_days?: number
+          id?: string
+          name?: string
+          result?: Json
+          supplier_id?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       supplier_products: {
         Row: {
@@ -355,7 +513,7 @@ export type Database = {
         | "project"
         | "builder"
         | "service_company"
-      po_status: "pending" | "in_transit" | "received" | "late"
+      po_status: "pending" | "in_transit" | "received" | "late" | "draft"
       product_category:
         | "PVC"
         | "copper"
@@ -367,11 +525,13 @@ export type Database = {
         | "service_parts"
         | "fittings"
         | "valves"
+      rec_status: "open" | "approved" | "rejected" | "snoozed"
       seasonality_pattern:
         | "cooling_peak"
         | "heating_peak"
         | "freeze_event"
         | "none"
+      urgency_level: "critical" | "high" | "medium" | "low"
       xyz_class: "X" | "Y" | "Z"
     }
     CompositeTypes: {
@@ -509,7 +669,7 @@ export const Constants = {
         "builder",
         "service_company",
       ],
-      po_status: ["pending", "in_transit", "received", "late"],
+      po_status: ["pending", "in_transit", "received", "late", "draft"],
       product_category: [
         "PVC",
         "copper",
@@ -522,12 +682,14 @@ export const Constants = {
         "fittings",
         "valves",
       ],
+      rec_status: ["open", "approved", "rejected", "snoozed"],
       seasonality_pattern: [
         "cooling_peak",
         "heating_peak",
         "freeze_event",
         "none",
       ],
+      urgency_level: ["critical", "high", "medium", "low"],
       xyz_class: ["X", "Y", "Z"],
     },
   },
