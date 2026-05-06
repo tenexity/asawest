@@ -25,6 +25,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -535,7 +536,14 @@ export default function NetworkGraph() {
             <Card>
               <CardHeader><CardTitle className="text-base">Severity Heat Map (Branch × Category)</CardTitle></CardHeader>
               <CardContent>
-                <Heatmap data={simResult.summary.heatmap} />
+                <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6 items-start">
+                  <Heatmap data={simResult.summary.heatmap} />
+                  <HeatmapSummary
+                    data={simResult.summary.heatmap}
+                    supplierName={simResult.summary.supplier_name}
+                    delayDays={simResult.summary.delay_days}
+                  />
+                </div>
               </CardContent>
             </Card>
 
@@ -551,8 +559,31 @@ export default function NetworkGraph() {
                         <TableHead>Description</TableHead>
                         <TableHead>Branch</TableHead>
                         <TableHead className="text-right">On Hand</TableHead>
-                        <TableHead className="text-right">Days→Out</TableHead>
-                        <TableHead className="text-right">Units Short</TableHead>
+                        <TableHead className="text-right">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help underline decoration-dotted">Days→Out</span>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs text-xs">
+                              <p className="font-semibold mb-1">Days until stockout</p>
+                              <p>Projected day when on-hand inventory hits zero, given:</p>
+                              <p className="mt-1 font-mono">on_hand − (avg_daily_demand × day) + on_order (arrives at lead_time + delay)</p>
+                              <p className="mt-1">Demand uses 90-day average per branch, with a ×2.5 boost in active seasonal months.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableHead>
+                        <TableHead className="text-right">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help underline decoration-dotted">Units Short</span>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs text-xs">
+                              <p className="font-semibold mb-1">Units short over horizon</p>
+                              <p className="font-mono">max(0, ⌈avg_daily_demand × horizon⌉ − on_hand − on_order)</p>
+                              <p className="mt-1">Horizon = lead_time + delay_days + 14 days of buffer demand. This is the gap a transfer or expedite PO needs to cover.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableHead>
                         <TableHead className="text-right">Revenue Risk</TableHead>
                         <TableHead>Recommended Action</TableHead>
                       </TableRow>
@@ -565,9 +596,33 @@ export default function NetworkGraph() {
                           <TableCell>{r.branch_name}</TableCell>
                           <TableCell className="text-right">{r.on_hand}</TableCell>
                           <TableCell className="text-right">
-                            <Badge variant={r.is_stockout ? "destructive" : "outline"}>{r.days_to_stockout}</Badge>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant={r.is_stockout ? "destructive" : "outline"} className="cursor-help">{r.days_to_stockout}</Badge>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs text-xs">
+                                <p className="font-semibold mb-1">{r.is_stockout ? "Projected stockout" : "Below safety stock"} on day {r.days_to_stockout}</p>
+                                <p>On hand: <b>{r.on_hand}</b> · Safety stock: <b>{r.safety_stock}</b></p>
+                                <p>Avg daily demand: <b>{r.avg_daily_demand}</b> units (90-day, branch-level)</p>
+                                <p className="mt-1">Replenishment PO arrives at lead time + {simResult.summary.delay_days}d delay. {r.is_stockout ? "Inflow is too late or too small to prevent zero." : "Inventory dips below safety stock but doesn't hit zero in horizon."}</p>
+                              </TooltipContent>
+                            </Tooltip>
                           </TableCell>
-                          <TableCell className="text-right">{r.units_short}</TableCell>
+                          <TableCell className="text-right">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="cursor-help underline decoration-dotted">{r.units_short}</span>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs text-xs">
+                                <p className="font-semibold mb-1">Shortfall over horizon</p>
+                                <p className="font-mono">⌈{r.avg_daily_demand} × horizon⌉ − {r.on_hand} − on_order = <b>{r.units_short}</b></p>
+                                <p className="mt-1">At ${r.unit_price.toFixed(2)}/unit → ${r.revenue_at_risk.toLocaleString()} revenue exposed.</p>
+                                {r.transfer_branch && (
+                                  <p className="mt-1 text-emerald-600">{r.transfer_units} units of surplus available at {r.transfer_branch}.</p>
+                                )}
+                              </TooltipContent>
+                            </Tooltip>
+                          </TableCell>
                           <TableCell className="text-right font-medium">${r.revenue_at_risk.toLocaleString()}</TableCell>
                           <TableCell className="text-xs">
                             {r.recommended_action}
@@ -822,6 +877,107 @@ function Heatmap({ data }: { data: Record<string, Record<string, number>> }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function HeatmapSummary({
+  data,
+  supplierName,
+  delayDays,
+}: {
+  data: Record<string, Record<string, number>>;
+  supplierName: string;
+  delayDays: number;
+}) {
+  const branches = Object.keys(data);
+  if (!branches.length) {
+    return <p className="text-sm text-muted-foreground">No risk concentration to summarize.</p>;
+  }
+  const cats = [...new Set(branches.flatMap((b) => Object.keys(data[b])))];
+
+  // Per-branch totals
+  const branchTotals = branches.map((b) => ({
+    name: b,
+    total: cats.reduce((s, c) => s + (data[b][c] ?? 0), 0),
+  }));
+  branchTotals.sort((a, b) => b.total - a.total);
+  const hotBranch = branchTotals[0];
+
+  // Per-category totals
+  const catTotals = cats.map((c) => ({
+    name: c,
+    total: branches.reduce((s, b) => s + (data[b][c] ?? 0), 0),
+  }));
+  catTotals.sort((a, b) => b.total - a.total);
+  const hotCat = catTotals[0];
+
+  // Hottest single cell
+  let hotCell = { branch: "", cat: "", v: 0 };
+  for (const b of branches) {
+    for (const c of cats) {
+      const v = data[b][c] ?? 0;
+      if (v > hotCell.v) hotCell = { branch: b, cat: c, v };
+    }
+  }
+
+  const totalAtRisk = branchTotals.reduce((s, b) => s + b.total, 0);
+  const branchesAffected = branchTotals.filter((b) => b.total > 0).length;
+
+  return (
+    <div className="text-sm space-y-3">
+      <div>
+        <p className="font-semibold text-foreground">What you're looking at</p>
+        <p className="text-muted-foreground mt-1">
+          Each cell counts <b>at-risk SKUs</b> for a branch + product category if{" "}
+          <b>{supplierName}</b> is delayed by <b>{delayDays} days</b>. Darker red = more SKUs
+          breaching safety stock. Empty cells = no exposure for that combo.
+        </p>
+      </div>
+
+      <div className="rounded-md border bg-muted/30 p-3 space-y-1.5">
+        <p className="font-semibold text-foreground">Where to focus first</p>
+        <ul className="space-y-1 text-muted-foreground">
+          <li>
+            🔥 <b className="text-foreground">{hotCell.branch}</b> · <b>{hotCell.cat}</b> is the
+            single hottest cell ({hotCell.v} SKUs at risk).
+          </li>
+          <li>
+            🏢 <b className="text-foreground">{hotBranch.name}</b> is the most exposed branch
+            ({hotBranch.total} at-risk SKUs across all categories).
+          </li>
+          <li>
+            📦 <b className="text-foreground">{hotCat.name}</b> is the most exposed category
+            ({hotCat.total} at-risk SKUs across all branches).
+          </li>
+          <li>
+            📊 <b className="text-foreground">{totalAtRisk.toLocaleString()}</b> SKU-branch
+            exposures across <b className="text-foreground">{branchesAffected}</b> branches.
+          </li>
+        </ul>
+      </div>
+
+      <div className="rounded-md border-l-4 border-l-primary bg-primary/5 p-3 space-y-1.5">
+        <p className="font-semibold text-foreground">Recommended next steps</p>
+        <ol className="list-decimal pl-4 space-y-1 text-muted-foreground">
+          <li>
+            Expedite or split the next PO from <b className="text-foreground">{supplierName}</b> —
+            prioritize <b>{hotCat.name}</b> SKUs going to <b>{hotBranch.name}</b>.
+          </li>
+          <li>
+            Use the <b>Top 20 At-Risk SKUs</b> table below to trigger inter-branch transfers where a
+            surplus branch is suggested (green link).
+          </li>
+          <li>
+            For SKUs with substitutes listed, promote the substitute in quoting/POS until the
+            primary is back in stock.
+          </li>
+          <li>
+            Notify counter staff at <b className="text-foreground">{hotBranch.name}</b> so will-call
+            customers are quoted realistic ETAs.
+          </li>
+        </ol>
+      </div>
     </div>
   );
 }
