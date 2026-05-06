@@ -350,7 +350,7 @@ export default function Reorder() {
           <DialogHeader>
             <DialogTitle>Why this recommendation?</DialogTitle>
             <DialogDescription>
-              {whyProduct?.sku} · {whyRec?._branch ?? ""}
+              {whyProduct?.sku} · {branches.find(b => b.id === whyRec?.branch_id)?.name ?? ""}
             </DialogDescription>
           </DialogHeader>
           {whyRec && (
