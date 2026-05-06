@@ -450,7 +450,7 @@ export default function Dashboard() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
         <KpiCard
           label="Fill Rate"
           value={`${fillRateLive.toFixed(1)}%`}
@@ -476,6 +476,14 @@ export default function Dashboard() {
           spark={valueSpark}
           color={successColor}
           hint="On-hand × cost"
+        />
+        <KpiCard
+          label="Dead Stock"
+          value={fmtCurrency(deadStockValue)}
+          delta={0}
+          spark={days30.map((d) => ({ x: d, y: deadStockValue }))}
+          color={deadStockPct > 5 ? dangerColor : deadStockPct > 2 ? warningColor : successColor}
+          hint={`${fmtNum(deadStockPairs)} SKUs · ${deadStockPct.toFixed(1)}% of inventory · 0 sales 90d`}
         />
         <KpiCard
           label="Avg Days of Supply"
