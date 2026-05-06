@@ -85,6 +85,7 @@ function KpiCard({
   spark,
   color,
   hint,
+  to,
 }: {
   label: string;
   value: string;
@@ -93,11 +94,22 @@ function KpiCard({
   spark: { x: string; y: number }[];
   color: string;
   hint?: string;
+  to?: string;
 }) {
-  return (
-    <Card className="p-4">
-      <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
-        {label}
+  const inner = (
+    <Card
+      className={cn(
+        "p-4 h-full",
+        to && "transition-all hover:shadow-md hover:border-primary/40 cursor-pointer group",
+      )}
+    >
+      <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide flex items-center justify-between">
+        <span>{label}</span>
+        {to && (
+          <span className="text-muted-foreground/50 group-hover:text-primary transition-colors">
+            →
+          </span>
+        )}
       </div>
       <div className="mt-1 flex items-baseline gap-2">
         <div className="text-2xl font-semibold tabular-nums">{value}</div>
@@ -108,6 +120,13 @@ function KpiCard({
       </div>
       {hint && <div className="text-[11px] text-muted-foreground mt-1">{hint}</div>}
     </Card>
+  );
+  return to ? (
+    <Link to={to} className="block">
+      {inner}
+    </Link>
+  ) : (
+    inner
   );
 }
 
