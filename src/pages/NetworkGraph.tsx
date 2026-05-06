@@ -880,3 +880,104 @@ function Heatmap({ data }: { data: Record<string, Record<string, number>> }) {
     </div>
   );
 }
+
+function HeatmapSummary({
+  data,
+  supplierName,
+  delayDays,
+}: {
+  data: Record<string, Record<string, number>>;
+  supplierName: string;
+  delayDays: number;
+}) {
+  const branches = Object.keys(data);
+  if (!branches.length) {
+    return <p className="text-sm text-muted-foreground">No risk concentration to summarize.</p>;
+  }
+  const cats = [...new Set(branches.flatMap((b) => Object.keys(data[b])))];
+
+  // Per-branch totals
+  const branchTotals = branches.map((b) => ({
+    name: b,
+    total: cats.reduce((s, c) => s + (data[b][c] ?? 0), 0),
+  }));
+  branchTotals.sort((a, b) => b.total - a.total);
+  const hotBranch = branchTotals[0];
+
+  // Per-category totals
+  const catTotals = cats.map((c) => ({
+    name: c,
+    total: branches.reduce((s, b) => s + (data[b][c] ?? 0), 0),
+  }));
+  catTotals.sort((a, b) => b.total - a.total);
+  const hotCat = catTotals[0];
+
+  // Hottest single cell
+  let hotCell = { branch: "", cat: "", v: 0 };
+  for (const b of branches) {
+    for (const c of cats) {
+      const v = data[b][c] ?? 0;
+      if (v > hotCell.v) hotCell = { branch: b, cat: c, v };
+    }
+  }
+
+  const totalAtRisk = branchTotals.reduce((s, b) => s + b.total, 0);
+  const branchesAffected = branchTotals.filter((b) => b.total > 0).length;
+
+  return (
+    <div className="text-sm space-y-3">
+      <div>
+        <p className="font-semibold text-foreground">What you're looking at</p>
+        <p className="text-muted-foreground mt-1">
+          Each cell counts <b>at-risk SKUs</b> for a branch + product category if{" "}
+          <b>{supplierName}</b> is delayed by <b>{delayDays} days</b>. Darker red = more SKUs
+          breaching safety stock. Empty cells = no exposure for that combo.
+        </p>
+      </div>
+
+      <div className="rounded-md border bg-muted/30 p-3 space-y-1.5">
+        <p className="font-semibold text-foreground">Where to focus first</p>
+        <ul className="space-y-1 text-muted-foreground">
+          <li>
+            🔥 <b className="text-foreground">{hotCell.branch}</b> · <b>{hotCell.cat}</b> is the
+            single hottest cell ({hotCell.v} SKUs at risk).
+          </li>
+          <li>
+            🏢 <b className="text-foreground">{hotBranch.name}</b> is the most exposed branch
+            ({hotBranch.total} at-risk SKUs across all categories).
+          </li>
+          <li>
+            📦 <b className="text-foreground">{hotCat.name}</b> is the most exposed category
+            ({hotCat.total} at-risk SKUs across all branches).
+          </li>
+          <li>
+            📊 <b className="text-foreground">{totalAtRisk.toLocaleString()}</b> SKU-branch
+            exposures across <b className="text-foreground">{branchesAffected}</b> branches.
+          </li>
+        </ul>
+      </div>
+
+      <div className="rounded-md border-l-4 border-l-primary bg-primary/5 p-3 space-y-1.5">
+        <p className="font-semibold text-foreground">Recommended next steps</p>
+        <ol className="list-decimal pl-4 space-y-1 text-muted-foreground">
+          <li>
+            Expedite or split the next PO from <b className="text-foreground">{supplierName}</b> —
+            prioritize <b>{hotCat.name}</b> SKUs going to <b>{hotBranch.name}</b>.
+          </li>
+          <li>
+            Use the <b>Top 20 At-Risk SKUs</b> table below to trigger inter-branch transfers where a
+            surplus branch is suggested (green link).
+          </li>
+          <li>
+            For SKUs with substitutes listed, promote the substitute in quoting/POS until the
+            primary is back in stock.
+          </li>
+          <li>
+            Notify counter staff at <b className="text-foreground">{hotBranch.name}</b> so will-call
+            customers are quoted realistic ETAs.
+          </li>
+        </ol>
+      </div>
+    </div>
+  );
+}
