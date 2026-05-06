@@ -143,7 +143,7 @@ export default function Chat() {
               </div>
             )}
             {messages.map((m, i) => (
-              <MessageBubble key={i} msg={m} />
+              <MessageBubble key={i} msg={m} onAskFollowUp={send} />
             ))}
             {sending && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -175,7 +175,7 @@ export default function Chat() {
   );
 }
 
-function MessageBubble({ msg }: { msg: Msg }) {
+function MessageBubble({ msg, onAskFollowUp }: { msg: Msg; onAskFollowUp?: (text: string) => void }) {
   if (msg.role === "user") {
     return (
       <div className="flex justify-end">
@@ -185,12 +185,34 @@ function MessageBubble({ msg }: { msg: Msg }) {
       </div>
     );
   }
+
+  // Extract suggested next question if present
+  let body = msg.content;
+  let nextQuestion: string | null = null;
+  const match = body.match(/NEXT_QUESTION:\s*(.+?)\s*$/s);
+  if (match) {
+    nextQuestion = match[1].trim().replace(/^["'`]|["'`]$/g, "");
+    body = body.slice(0, match.index).trimEnd();
+  }
+
   return (
     <div className="flex justify-start">
-      <div className="max-w-[90%] bg-muted/50 rounded-2xl rounded-bl-sm px-4 py-3 text-sm space-y-2">
-        <div className="prose prose-sm dark:prose-invert max-w-none prose-table:text-xs prose-th:px-2 prose-td:px-2">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+      <div className="max-w-[90%] bg-muted/50 rounded-2xl rounded-bl-sm px-4 py-3 text-sm space-y-3">
+        <div className="prose prose-sm dark:prose-invert max-w-none prose-table:text-xs prose-th:px-2 prose-td:px-2 prose-th:py-1 prose-td:py-1 prose-table:border prose-th:border prose-td:border prose-table:border-border prose-th:border-border prose-td:border-border prose-table:my-2 prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
         </div>
+        {nextQuestion && onAskFollowUp && (
+          <button
+            onClick={() => onAskFollowUp(nextQuestion!)}
+            className="group flex items-start gap-2 text-left text-xs px-3 py-2 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 transition-colors w-full"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-primary font-medium mb-0.5">Suggested next question</div>
+              <div className="text-foreground">{nextQuestion}</div>
+            </div>
+          </button>
+        )}
         {msg.tool_calls && msg.tool_calls.length > 0 && (
           <Collapsible>
             <CollapsibleTrigger className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">

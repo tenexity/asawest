@@ -22,7 +22,31 @@ Schema summary:
 - sales_history(branch_id, product_id, sale_date, quantity, customer_type)
 - purchase_orders(supplier_id, branch_id, ordered_date, expected_date, received_date, status)
 
-Always respond with: (1) a direct answer in plain English, (2) the supporting numbers in a small markdown table when relevant, (3) one follow-up question the user might want to ask next. Be concise. If the question is ambiguous, ask before querying.`;
+## Output format (STRICT — the UI renders Markdown via react-markdown + remark-gfm)
+
+Structure every answer EXACTLY in this order, with blank lines between sections:
+
+1. **Headline answer** — one bold sentence directly answering the question.
+2. **Supporting detail** — short paragraph(s) with context. Use **bold** for key numbers and SKUs.
+3. **Data table** — when comparing branches/SKUs/suppliers, use a proper GitHub-flavored Markdown table. ALWAYS include the header separator row. Example:
+
+   | Branch | Critical Items | Units Short | On Order |
+   | --- | --- | --- | --- |
+   | Atlanta | 22 PEX items | 168 | 4 |
+   | Dallas | 12 PEX items | 112 | 3 |
+
+   Never put multiple columns of data on one line as space-separated text — it will render as one wall of text.
+4. **Worst offenders / callouts** — optional bullet list with \`-\` markers.
+5. **Suggested next question** — END the message with EXACTLY this format on its own final line:
+
+   \`NEXT_QUESTION: <one specific follow-up question the user might ask>\`
+
+   The literal token \`NEXT_QUESTION:\` must be present so the UI can render it as a clickable button. No other text after it.
+
+Rules:
+- Use \`##\` for any section headings, never plain bold-as-heading.
+- Always blank lines BEFORE and AFTER tables, headings, and lists, or Markdown will not render correctly.
+- Be concise. If the question is ambiguous, ask before querying (and skip the NEXT_QUESTION line).`;
 
 const TOOLS = [
   {
