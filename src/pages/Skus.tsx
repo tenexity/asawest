@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useBranch } from "@/contexts/BranchContext";
 import { Card } from "@/components/ui/card";
@@ -100,16 +100,19 @@ type SortKey = "sku" | "description" | "category" | "abc" | "totalOnHand" | "day
 export default function Skus() {
   const { branchId } = useBranch();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [inv, setInv] = useState<Inv[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const initialFilter = searchParams.get("filter") ?? "";
   const [q, setQ] = useState("");
   const [category, setCategory] = useState<string>("all");
   const [abc, setAbc] = useState<string>("all");
   const [xyz, setXyz] = useState<string>("all");
   const [problemsOnly, setProblemsOnly] = useState(false);
+  const [deadOnly, setDeadOnly] = useState(initialFilter === "dead");
   const [sortKey, setSortKey] = useState<SortKey>("status");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
@@ -205,6 +208,8 @@ export default function Skus() {
         if (abc !== "all" && r.abc !== abc) return false;
         if (xyz !== "all" && r.xyz !== xyz) return false;
         if (problemsOnly && (r.status === "Healthy" || r.status === "Watch")) return false;
+        // Dead stock = on-hand > 0 AND zero demand in the last 30 days
+        if (deadOnly && !(r.totalOnHand > 0 && r.dailyDemand === 0)) return false;
         return true;
       })
       .sort((a, b) => {
@@ -220,7 +225,7 @@ export default function Skus() {
         if (typeof va === "number" && typeof vb === "number") return (va - vb) * dir;
         return String(va).localeCompare(String(vb)) * dir;
       });
-  }, [rows, q, category, abc, xyz, problemsOnly, sortKey, sortDir]);
+  }, [rows, q, category, abc, xyz, problemsOnly, deadOnly, sortKey, sortDir]);
 
   const head = (label: string, key: SortKey, align: "left" | "right" = "left") => (
     <TableHead
@@ -286,8 +291,33 @@ export default function Skus() {
           </SelectContent>
         </Select>
         <div className="flex items-center gap-2 ml-auto px-2">
+          <Switch
+            id="dead"
+            checked={deadOnly}
+            onCheckedChange={(v) => {
+              setDeadOnly(v);
+              const next = new URLSearchParams(searchParams);
+              if (v) next.set("filter", "dead");
+              else next.delete("filter");
+              setSearchParams(next, { replace: true });
+            }}
+          />
+          <Label htmlFor="dead" className="text-sm whitespace-nowrap">Dead stock only</Label>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="What is dead stock?">
+                  <Info className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs text-xs">
+                On-hand inventory with <span className="font-medium">zero sales in the last 30 days</span>.
+                This is trapped working capital — convert it via markdown, transfer, or substitution.
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <Switch id="problems" checked={problemsOnly} onCheckedChange={setProblemsOnly} />
-          <Label htmlFor="problems" className="text-sm">Problems only</Label>
+          <Label htmlFor="problems" className="text-sm whitespace-nowrap">Problems only</Label>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>

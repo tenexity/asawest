@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useBranch } from "@/contexts/BranchContext";
 import { Card } from "@/components/ui/card";
@@ -84,6 +85,7 @@ function KpiCard({
   spark,
   color,
   hint,
+  to,
 }: {
   label: string;
   value: string;
@@ -92,11 +94,22 @@ function KpiCard({
   spark: { x: string; y: number }[];
   color: string;
   hint?: string;
+  to?: string;
 }) {
-  return (
-    <Card className="p-4">
-      <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
-        {label}
+  const inner = (
+    <Card
+      className={cn(
+        "p-4 h-full",
+        to && "transition-all hover:shadow-md hover:border-primary/40 cursor-pointer group",
+      )}
+    >
+      <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide flex items-center justify-between">
+        <span>{label}</span>
+        {to && (
+          <span className="text-muted-foreground/50 group-hover:text-primary transition-colors">
+            →
+          </span>
+        )}
       </div>
       <div className="mt-1 flex items-baseline gap-2">
         <div className="text-2xl font-semibold tabular-nums">{value}</div>
@@ -107,6 +120,13 @@ function KpiCard({
       </div>
       {hint && <div className="text-[11px] text-muted-foreground mt-1">{hint}</div>}
     </Card>
+  );
+  return to ? (
+    <Link to={to} className="block">
+      {inner}
+    </Link>
+  ) : (
+    inner
   );
 }
 
@@ -458,6 +478,7 @@ export default function Dashboard() {
           spark={fillSpark}
           color={fillRateLive >= 95 ? successColor : fillRateLive >= 90 ? warningColor : dangerColor}
           hint="Active SKUs moving daily"
+          to="/agents?type=stockout_risk"
         />
         <KpiCard
           label="Active Stockouts"
@@ -467,6 +488,7 @@ export default function Dashboard() {
           spark={stockoutTrend}
           color={stockoutPairs.length > 0 ? dangerColor : successColor}
           hint="SKU-branch pairs at zero"
+          to="/reorder"
         />
         <KpiCard
           label="Inventory Value"
@@ -476,6 +498,7 @@ export default function Dashboard() {
           spark={valueSpark}
           color={successColor}
           hint="On-hand × cost"
+          to="/skus"
         />
         <KpiCard
           label="Dead Stock"
@@ -484,6 +507,7 @@ export default function Dashboard() {
           spark={days30.map((d) => ({ x: d, y: deadStockValue }))}
           color={deadStockPct > 5 ? dangerColor : deadStockPct > 2 ? warningColor : successColor}
           hint={`${fmtNum(deadStockPairs)} SKUs · ${deadStockPct.toFixed(1)}% of inventory · 0 sales 90d`}
+          to="/skus?filter=dead"
         />
         <KpiCard
           label="Avg Days of Supply"
@@ -493,6 +517,7 @@ export default function Dashboard() {
           spark={demandSpark}
           color={avgDos > 180 ? warningColor : avgDos < 14 ? dangerColor : successColor}
           hint="Across active SKUs"
+          to="/agents?type=excess_inventory"
         />
         <KpiCard
           label="Inventory Turns"
