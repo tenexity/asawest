@@ -296,8 +296,35 @@ export default function Reorder() {
                 <TableHead>Description</TableHead>
                 <TableHead>Branch</TableHead>
                 <TableHead className="text-right">On hand</TableHead>
-                <TableHead className="text-right">DoS</TableHead>
-                <TableHead className="text-right">ROP</TableHead>
+                <TableHead className="text-right">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex items-center gap-1 cursor-help">
+                          DoS <Info className="h-3 w-3 text-muted-foreground" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs text-xs">
+                        <span className="font-medium">Days of Supply</span> — how many days the current on-hand inventory will last at the average daily demand rate.
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </TableHead>
+                <TableHead className="text-right">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex items-center gap-1 cursor-help">
+                          ROP <Info className="h-3 w-3 text-muted-foreground" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs text-xs">
+                        <span className="font-medium">Reorder Point</span> — the on-hand quantity at which to place a new order to avoid running out before it arrives.
+                        <div className="mt-1 text-muted-foreground">ROP = (avg daily demand × lead time) + safety stock</div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </TableHead>
                 <TableHead className="text-right">Suggested</TableHead>
                 <TableHead className="text-right">$ Impact</TableHead>
                 <TableHead>Supplier</TableHead>
