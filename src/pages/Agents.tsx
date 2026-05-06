@@ -18,6 +18,7 @@ import { formatDistanceToNow } from "date-fns";
 import { humanizeEvidence } from "@/lib/evidence-format";
 import { EditActionDialog } from "@/components/EditActionDialog";
 import { AuditLogDialog } from "@/components/AuditLogDialog";
+import { ApproveConfirmDialog } from "@/components/ApproveConfirmDialog";
 
 type Insight = {
   id: string;
@@ -70,6 +71,7 @@ export default function Agents() {
   const [editing, setEditing] = useState<Insight | null>(null);
   const [auditFor, setAuditFor] = useState<string | null | undefined>(undefined);
   const [draftingNarratives, setDraftingNarratives] = useState(false);
+  const [confirming, setConfirming] = useState<Insight | null>(null);
 
   async function load() {
     const { data, error } = await supabase
@@ -212,7 +214,7 @@ export default function Agents() {
               <InsightCard
                 key={ins.id}
                 insight={ins}
-                onApprove={(i) => approve(i)}
+                onApprove={(i) => setConfirming(i)}
                 onEdit={(i) => setEditing(i)}
                 onAudit={(i) => setAuditFor(i.id)}
                 onStatus={setStatus}
@@ -227,6 +229,12 @@ export default function Agents() {
         onOpenChange={(o) => !o && setEditing(null)}
         insight={editing as any}
         onSave={async (edited) => { if (editing) await approve(editing, edited); setEditing(null); }}
+      />
+      <ApproveConfirmDialog
+        open={!!confirming}
+        onOpenChange={(o) => !o && setConfirming(null)}
+        insight={confirming}
+        onConfirm={() => { if (confirming) approve(confirming); }}
       />
       <AuditLogDialog
         open={auditFor !== undefined}
