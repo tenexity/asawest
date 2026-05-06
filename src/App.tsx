@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
 import Dashboard from "./pages/Dashboard";
+import Skus from "./pages/Skus";
+import SkuDetail from "./pages/SkuDetail";
 import ConnectData from "./pages/ConnectData";
 import Placeholder from "./pages/Placeholder";
 import Auth from "./pages/Auth";
@@ -24,7 +26,8 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route element={<AppLayout />}>
               <Route path="/" element={<Dashboard />} />
-              <Route path="/skus" element={<Placeholder title="SKU Explorer" />} />
+              <Route path="/skus" element={<Skus />} />
+              <Route path="/skus/:id" element={<SkuDetail />} />
               <Route path="/reorder" element={<Placeholder title="Reorder Recommendations" />} />
               <Route path="/network" element={<Placeholder title="Network Graph" />} />
               <Route path="/agents" element={<Placeholder title="Agents" />} />
