@@ -120,6 +120,7 @@ Deno.serve(async (req) => {
       "product_id",
       (q) => q.gte("sale_date", sinceStr)
     );
+    console.log(`[sim] supplier=${supplier.name} products=${productIds.length} inv=${inventory.length} sales=${sales.length} branches=${branches?.length}`);
 
     // Build per (product, branch) avg daily demand
     const demandMap = new Map<string, number>();
