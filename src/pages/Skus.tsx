@@ -22,7 +22,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ArrowDown, ArrowUp, Search } from "lucide-react";
+import { ArrowDown, ArrowUp, Info, Search } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { computeStatus, statusToken, Status } from "@/lib/sku-status";
 
@@ -263,6 +264,24 @@ export default function Skus() {
         <div className="flex items-center gap-2 ml-auto px-2">
           <Switch id="problems" checked={problemsOnly} onCheckedChange={setProblemsOnly} />
           <Label htmlFor="problems" className="text-sm">Problems only</Label>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="What counts as a problem?">
+                  <Info className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs text-xs">
+                Hides <span className="font-medium">Healthy</span> and <span className="font-medium">Watch</span> SKUs.
+                Shows only those that need attention:
+                <ul className="mt-1 list-disc pl-4 space-y-0.5">
+                  <li><span className="font-medium">Stockout</span> — on-hand is 0</li>
+                  <li><span className="font-medium">At Risk</span> — on-hand at or below reorder point</li>
+                  <li><span className="font-medium">Excess</span> — more than 180 days of supply</li>
+                </ul>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </Card>
 
