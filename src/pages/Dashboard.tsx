@@ -392,16 +392,16 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
         <KpiCard
           label="Fill Rate"
-          value={`${fillRate.toFixed(1)}%`}
-          delta={fillDelta}
-          spark={demandSpark.map((d) => ({ x: d.x, y: fillRate }))}
-          color={fillRate >= 95 ? successColor : fillRate >= 90 ? warningColor : dangerColor}
-          hint="Target > 95%"
+          value={`${fillRateLive.toFixed(1)}%`}
+          delta={fillDeltaPct}
+          spark={fillSpark}
+          color={fillRateLive >= 95 ? successColor : fillRateLive >= 90 ? warningColor : dangerColor}
+          hint="Active SKUs moving daily"
         />
         <KpiCard
           label="Active Stockouts"
           value={fmtNum(stockoutPairs.length)}
-          delta={0}
+          delta={stockoutDeltaPct}
           invertDelta
           spark={stockoutTrend}
           color={stockoutPairs.length > 0 ? dangerColor : successColor}
@@ -410,15 +410,16 @@ export default function Dashboard() {
         <KpiCard
           label="Inventory Value"
           value={fmtCurrency(totalValue)}
-          delta={0}
-          spark={demandSpark}
+          delta={cogsDelta}
+          invertDelta
+          spark={valueSpark}
           color={successColor}
-          hint="Sum of on-hand × cost"
+          hint="On-hand × cost"
         />
         <KpiCard
           label="Avg Days of Supply"
           value={avgDos.toFixed(0)}
-          delta={demandPrev ? ((demand30 - demandPrev) / demandPrev) * 100 : 0}
+          delta={demandDelta}
           invertDelta
           spark={demandSpark}
           color={avgDos > 180 ? warningColor : avgDos < 14 ? dangerColor : successColor}
@@ -427,8 +428,8 @@ export default function Dashboard() {
         <KpiCard
           label="Inventory Turns"
           value={`${turns.toFixed(2)}x`}
-          delta={0}
-          spark={demandSpark}
+          delta={cogsDelta}
+          spark={cogsSpark}
           color={turns >= 4 ? successColor : turns >= 2 ? warningColor : dangerColor}
           hint="Annualized, last 90d"
         />
