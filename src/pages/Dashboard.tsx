@@ -551,23 +551,66 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </div>
         </Card>
-        <Card className="p-4">
-          <h2 className="font-semibold mb-3">Top 10 Problem SKUs</h2>
-          <div className="h-64">
+        <Card className="p-0 overflow-hidden">
+          <div className="px-4 py-3 border-b">
+            <h2 className="font-semibold">Top 10 Problem SKUs</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Ranked by reason and financial impact
+            </p>
+          </div>
+          <div className="h-[232px] overflow-auto">
             {problems.length === 0 ? (
               <div className="h-full grid place-items-center text-sm text-muted-foreground">
                 No problem SKUs
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={problems} layout="vertical" margin={{ left: 60 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis type="number" tick={{ fontSize: 10 }} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={80} />
-                  <Tooltip />
-                  <Bar dataKey="value" fill={dangerColor} radius={[0, 3, 3, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>SKU</TableHead>
+                    <TableHead>Reason</TableHead>
+                    <TableHead className="text-right">On Hand</TableHead>
+                    <TableHead className="text-right">ROP</TableHead>
+                    <TableHead className="text-right">DOS</TableHead>
+                    <TableHead className="text-right">Impact</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {problems.map((p) => {
+                    const badge =
+                      p.reason === "Stockout"
+                        ? "bg-danger/15 text-danger"
+                        : p.reason === "Below ROP"
+                        ? "bg-warning/15 text-warning"
+                        : "bg-muted text-muted-foreground";
+                    return (
+                      <TableRow key={`${p.sku}-${p.reason}`}>
+                        <TableCell className="font-mono text-xs">
+                          <div className="font-medium">{p.sku}</div>
+                          <div className="text-[10px] text-muted-foreground truncate max-w-[180px]">
+                            {p.desc}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", badge)}>
+                            {p.reason}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{p.on_hand}</TableCell>
+                        <TableCell className="text-right tabular-nums text-muted-foreground">
+                          {p.rp}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {p.dos >= 999 ? "∞" : p.dos.toFixed(0)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums font-medium">
+                          {fmtCurrency(p.impact)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             )}
           </div>
         </Card>
