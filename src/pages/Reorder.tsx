@@ -16,6 +16,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { RefreshCw, Sparkles, Snowflake, Tag, Info, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -246,14 +247,36 @@ export default function Reorder() {
             {(["critical", "high", "medium", "low"] as const).map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
           </SelectContent>
         </Select>
-        <div className="flex items-center gap-2 ml-2">
-          <Switch id="seasonal" checked={seasonalOnly} onCheckedChange={setSeasonalOnly} />
-          <Label htmlFor="seasonal" className="text-sm">Seasonal only</Label>
-        </div>
-        <div className="flex items-center gap-2">
-          <Switch id="rebate" checked={rebateOnly} onCheckedChange={setRebateOnly} />
-          <Label htmlFor="rebate" className="text-sm">Rebate only</Label>
-        </div>
+        <TooltipProvider>
+          <div className="flex items-center gap-2 ml-2">
+            <Switch id="seasonal" checked={seasonalOnly} onCheckedChange={setSeasonalOnly} />
+            <Label htmlFor="seasonal" className="text-sm">Seasonal only</Label>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="What is seasonal only?">
+                  <Info className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs text-xs">
+                Show only SKUs whose next 30 days fall in their peak season — cooling (May–Aug), heating (Nov–Feb), or freeze events (Dec–Feb at freeze-prone branches). For these, expected daily demand is multiplied by 2.5× when sizing the order.
+              </TooltipContent>
+            </Tooltip>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch id="rebate" checked={rebateOnly} onCheckedChange={setRebateOnly} />
+            <Label htmlFor="rebate" className="text-sm">Rebate only</Label>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="What is rebate only?">
+                  <Info className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs text-xs">
+                Show only SKUs where the suggested quantity is within 15% of a supplier rebate threshold (5× or 10× MOQ). Bumping the order a little can unlock a volume rebate — the "Why" modal shows the exact threshold and bumped quantity.
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </TooltipProvider>
         {selected.size > 0 && (
           <Button size="sm" className="ml-auto" onClick={createPOsFromSelected}>
             Create PO from {selected.size} selected
