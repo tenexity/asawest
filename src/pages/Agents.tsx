@@ -18,6 +18,7 @@ import { formatDistanceToNow } from "date-fns";
 import { humanizeEvidence } from "@/lib/evidence-format";
 import { EditActionDialog } from "@/components/EditActionDialog";
 import { AuditLogDialog } from "@/components/AuditLogDialog";
+import { ApproveConfirmDialog } from "@/components/ApproveConfirmDialog";
 
 type Insight = {
   id: string;
