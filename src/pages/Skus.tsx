@@ -59,22 +59,24 @@ type Row = {
 
 const STATUSES: Status[] = ["Healthy", "Watch", "At Risk", "Stockout", "Excess"];
 
+const ABC_TIER: Record<string, string> = { A: "High", B: "Mid", C: "Low" };
+const XYZ_TIER: Record<string, string> = { X: "Steady", Y: "Variable", Z: "Lumpy" };
 const ABC_LABEL: Record<string, string> = {
-  A: "high value (top ~20% of revenue, 98% target service level)",
-  B: "mid value (next ~30% of revenue, 95% target service level)",
-  C: "low value / long tail (90% target service level)",
+  A: "top ~20% of revenue (98% target service level)",
+  B: "next ~30% of revenue (95% target service level)",
+  C: "long tail (90% target service level)",
 };
 const XYZ_LABEL: Record<string, string> = {
-  X: "steady, predictable demand",
-  Y: "variable or seasonal demand",
-  Z: "lumpy / intermittent demand — hard to forecast",
+  X: "predictable, easy to forecast",
+  Y: "variable or seasonal",
+  Z: "lumpy / intermittent — hard to forecast",
 };
 function combinedHint(abc: string, xyz: string): string {
   if (abc === "A" && xyz === "X") return "Tight stock, frequent reorders — keep this one humming.";
   if (abc === "A" && xyz === "Z") return "Important but unpredictable — needs extra safety stock.";
   if (abc === "C" && xyz === "Z") return "Low value and lumpy — consider order-on-demand or substitution.";
   if (abc === "B" && xyz === "Y") return "Mid-tier seasonal — watch peak windows closely.";
-  return "Stocking strategy is set from this combination.";
+  return "Used to set service level and forecasting strategy automatically.";
 }
 
 async function fetchAll<T>(
