@@ -35,52 +35,78 @@ Deno.serve(async (req) => {
     since.setDate(since.getDate() - 90);
     const sinceStr = since.toISOString().slice(0, 10);
 
-    const [suppliers, branches, products, sp, inv, pos, sales] = await Promise.all([
+    const [suppliers, branches, products, sp, sales] = await Promise.all([
       fetchAll<any>("suppliers", "id, name"),
       fetchAll<any>("branches", "id, name"),
       fetchAll<any>("products", "id, category, unit_cost, unit_price"),
-      fetchAll<any>("supplier_products", "supplier_id, product_id, cost"),
-      fetchAll<any>("inventory_levels", "product_id, branch_id, on_hand"),
-      fetchAll<any>("purchase_orders", "supplier_id, ordered_date", (q) => q.gte("ordered_date", sinceStr)),
+      fetchAll<any>("supplier_products", "supplier_id, product_id, is_primary"),
       fetchAll<any>("sales_history", "branch_id, customer_type, quantity, product_id, sale_date", (q) => q.gte("sale_date", sinceStr)),
     ]);
 
     const prodMap = new Map((products ?? []).map((p: any) => [p.id, p]));
-    const spByPair = new Map<string, number>(); // supplier|category -> spend approx
-    const supplierProducts = new Map<string, Set<string>>(); // supplier -> productIds
-    for (const r of sp ?? []) {
-      const set = supplierProducts.get(r.supplier_id) ?? new Set();
-      set.add(r.product_id);
-      supplierProducts.set(r.supplier_id, set);
-    }
-    // Approximate supplier→category spend = (PO count last 90d for supplier) * avg cost in that category
-    const poCount = new Map<string, number>();
-    for (const p of pos ?? []) poCount.set(p.supplier_id, (poCount.get(p.supplier_id) ?? 0) + 1);
 
-    for (const r of sp ?? []) {
-      const prod: any = prodMap.get(r.product_id);
+    // Single common metric across all three tiers: 90-day COGS
+    // (units sold in last 90d * product unit_cost). This makes the three
+    // edge tiers reconcile: dollars in (supplier→category) ≈ dollars
+    // through (category→branch) ≈ dollars out (branch→customer) for
+    // each category.
+
+    // Aggregate 90-day COGS per (product, branch)
+    const cogsByProdBranch = new Map<string, number>();
+    const cogsByProd = new Map<string, number>();
+    for (const s of sales ?? []) {
+      const prod: any = prodMap.get(s.product_id);
       if (!prod) continue;
-      const k = `${r.supplier_id}|${prod.category}`;
-      const weight = (poCount.get(r.supplier_id) ?? 1) * Number(r.cost) * 50;
-      spByPair.set(k, (spByPair.get(k) ?? 0) + weight);
+      const cogs = s.quantity * Number(prod.unit_cost ?? 0);
+      const k = `${s.product_id}|${s.branch_id}`;
+      cogsByProdBranch.set(k, (cogsByProdBranch.get(k) ?? 0) + cogs);
+      cogsByProd.set(s.product_id, (cogsByProd.get(s.product_id) ?? 0) + cogs);
     }
 
-    // Category→Branch inventory value
+    // Supplier → Category: allocate each product's 90-day COGS to its
+    // primary supplier (fallback: split evenly across listed suppliers).
+    const suppliersByProduct = new Map<string, { primary?: string; all: string[] }>();
+    for (const r of sp ?? []) {
+      const entry = suppliersByProduct.get(r.product_id) ?? { all: [] as string[] };
+      entry.all.push(r.supplier_id);
+      if (r.is_primary) entry.primary = r.supplier_id;
+      suppliersByProduct.set(r.product_id, entry);
+    }
+    const spByPair = new Map<string, number>();
+    for (const [productId, cogs] of cogsByProd) {
+      const prod: any = prodMap.get(productId);
+      if (!prod) continue;
+      const link = suppliersByProduct.get(productId);
+      if (!link || link.all.length === 0) continue;
+      if (link.primary) {
+        const k = `${link.primary}|${prod.category}`;
+        spByPair.set(k, (spByPair.get(k) ?? 0) + cogs);
+      } else {
+        const share = cogs / link.all.length;
+        for (const sid of link.all) {
+          const k = `${sid}|${prod.category}`;
+          spByPair.set(k, (spByPair.get(k) ?? 0) + share);
+        }
+      }
+    }
+
+    // Category → Branch: 90-day COGS by (category, branch)
     const catBranch = new Map<string, number>();
-    for (const i of inv ?? []) {
-      const prod: any = prodMap.get(i.product_id);
+    for (const [key, cogs] of cogsByProdBranch) {
+      const [productId, branchId] = key.split("|");
+      const prod: any = prodMap.get(productId);
       if (!prod) continue;
-      const k = `${prod.category}|${i.branch_id}`;
-      catBranch.set(k, (catBranch.get(k) ?? 0) + i.on_hand * Number(prod.unit_cost ?? 0));
+      const k = `${prod.category}|${branchId}`;
+      catBranch.set(k, (catBranch.get(k) ?? 0) + cogs);
     }
 
-    // Branch→CustomerType sales revenue
+    // Branch → CustomerType: 90-day COGS by (branch, customer_type)
     const branchCust = new Map<string, number>();
     for (const s of sales ?? []) {
       const prod: any = prodMap.get(s.product_id);
       if (!prod) continue;
       const k = `${s.branch_id}|${s.customer_type}`;
-      branchCust.set(k, (branchCust.get(k) ?? 0) + s.quantity * Number(prod.unit_price ?? 0));
+      branchCust.set(k, (branchCust.get(k) ?? 0) + s.quantity * Number(prod.unit_cost ?? 0));
     }
 
     return new Response(
