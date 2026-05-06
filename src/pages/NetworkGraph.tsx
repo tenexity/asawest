@@ -188,7 +188,7 @@ export default function NetworkGraph() {
     for (const [k, w] of Object.entries(graph.category_branch)) {
       const [cat, bid] = k.split("|");
       if (!passCat(cat) || !passBranch(bid)) continue;
-      if (criticalOnly && w < criticalThreshold) continue;
+      if (criticalOnly && w < cbThreshold) continue;
       usedCategories.add(cat);
       usedBranches.add(bid);
       edges.push({
@@ -205,7 +205,7 @@ export default function NetworkGraph() {
     for (const [k, w] of Object.entries(graph.branch_customer)) {
       const [bid, ct] = k.split("|");
       if (!passBranch(bid)) continue;
-      if (criticalOnly && w < criticalThreshold) continue;
+      if (criticalOnly && w < bcThreshold) continue;
       usedBranches.add(bid);
       usedCustomers.add(ct);
       edges.push({
