@@ -14,7 +14,331 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      branches: {
+        Row: {
+          city: string
+          climate_zone: Database["public"]["Enums"]["climate_zone"]
+          id: string
+          name: string
+          opened_date: string
+          state: string
+        }
+        Insert: {
+          city: string
+          climate_zone: Database["public"]["Enums"]["climate_zone"]
+          id?: string
+          name: string
+          opened_date: string
+          state: string
+        }
+        Update: {
+          city?: string
+          climate_zone?: Database["public"]["Enums"]["climate_zone"]
+          id?: string
+          name?: string
+          opened_date?: string
+          state?: string
+        }
+        Relationships: []
+      }
+      customers: {
+        Row: {
+          assigned_branch_id: string | null
+          id: string
+          name: string
+          type: Database["public"]["Enums"]["customer_type"]
+        }
+        Insert: {
+          assigned_branch_id?: string | null
+          id?: string
+          name: string
+          type: Database["public"]["Enums"]["customer_type"]
+        }
+        Update: {
+          assigned_branch_id?: string | null
+          id?: string
+          name?: string
+          type?: Database["public"]["Enums"]["customer_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customers_assigned_branch_id_fkey"
+            columns: ["assigned_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_levels: {
+        Row: {
+          allocated: number
+          branch_id: string
+          last_counted_at: string | null
+          on_hand: number
+          on_order: number
+          product_id: string
+          reorder_point: number
+          safety_stock: number
+        }
+        Insert: {
+          allocated?: number
+          branch_id: string
+          last_counted_at?: string | null
+          on_hand?: number
+          on_order?: number
+          product_id: string
+          reorder_point?: number
+          safety_stock?: number
+        }
+        Update: {
+          allocated?: number
+          branch_id?: string
+          last_counted_at?: string | null
+          on_hand?: number
+          on_order?: number
+          product_id?: string
+          reorder_point?: number
+          safety_stock?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_levels_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_levels_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          abc_class: Database["public"]["Enums"]["abc_class"]
+          category: Database["public"]["Enums"]["product_category"]
+          description: string
+          id: string
+          is_intermittent: boolean
+          is_phase_down: boolean
+          seasonality_pattern: Database["public"]["Enums"]["seasonality_pattern"]
+          sku: string
+          subcategory: string | null
+          substitute_product_id: string | null
+          unit_cost: number
+          unit_of_measure: string
+          unit_price: number
+          xyz_class: Database["public"]["Enums"]["xyz_class"]
+        }
+        Insert: {
+          abc_class: Database["public"]["Enums"]["abc_class"]
+          category: Database["public"]["Enums"]["product_category"]
+          description: string
+          id?: string
+          is_intermittent?: boolean
+          is_phase_down?: boolean
+          seasonality_pattern?: Database["public"]["Enums"]["seasonality_pattern"]
+          sku: string
+          subcategory?: string | null
+          substitute_product_id?: string | null
+          unit_cost: number
+          unit_of_measure: string
+          unit_price: number
+          xyz_class: Database["public"]["Enums"]["xyz_class"]
+        }
+        Update: {
+          abc_class?: Database["public"]["Enums"]["abc_class"]
+          category?: Database["public"]["Enums"]["product_category"]
+          description?: string
+          id?: string
+          is_intermittent?: boolean
+          is_phase_down?: boolean
+          seasonality_pattern?: Database["public"]["Enums"]["seasonality_pattern"]
+          sku?: string
+          subcategory?: string | null
+          substitute_product_id?: string | null
+          unit_cost?: number
+          unit_of_measure?: string
+          unit_price?: number
+          xyz_class?: Database["public"]["Enums"]["xyz_class"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_substitute_product_id_fkey"
+            columns: ["substitute_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_orders: {
+        Row: {
+          branch_id: string
+          expected_date: string
+          id: string
+          ordered_date: string
+          received_date: string | null
+          status: Database["public"]["Enums"]["po_status"]
+          supplier_id: string
+        }
+        Insert: {
+          branch_id: string
+          expected_date: string
+          id?: string
+          ordered_date: string
+          received_date?: string | null
+          status: Database["public"]["Enums"]["po_status"]
+          supplier_id: string
+        }
+        Update: {
+          branch_id?: string
+          expected_date?: string
+          id?: string
+          ordered_date?: string
+          received_date?: string | null
+          status?: Database["public"]["Enums"]["po_status"]
+          supplier_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_orders_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_history: {
+        Row: {
+          branch_id: string
+          customer_type: Database["public"]["Enums"]["customer_type"]
+          id: number
+          is_will_call: boolean
+          product_id: string
+          quantity: number
+          sale_date: string
+        }
+        Insert: {
+          branch_id: string
+          customer_type: Database["public"]["Enums"]["customer_type"]
+          id?: number
+          is_will_call?: boolean
+          product_id: string
+          quantity: number
+          sale_date: string
+        }
+        Update: {
+          branch_id?: string
+          customer_type?: Database["public"]["Enums"]["customer_type"]
+          id?: number
+          is_will_call?: boolean
+          product_id?: string
+          quantity?: number
+          sale_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_history_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_history_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplier_products: {
+        Row: {
+          cost: number
+          is_primary: boolean
+          moq: number
+          product_id: string
+          supplier_id: string
+          supplier_sku: string
+        }
+        Insert: {
+          cost: number
+          is_primary?: boolean
+          moq: number
+          product_id: string
+          supplier_id: string
+          supplier_sku: string
+        }
+        Update: {
+          cost?: number
+          is_primary?: boolean
+          moq?: number
+          product_id?: string
+          supplier_id?: string
+          supplier_sku?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_products_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      suppliers: {
+        Row: {
+          id: string
+          lead_time_days: number
+          lead_time_variability_days: number
+          name: string
+          payment_terms: string
+          rebate_program_active: boolean
+          reliability_score: number
+        }
+        Insert: {
+          id?: string
+          lead_time_days: number
+          lead_time_variability_days: number
+          name: string
+          payment_terms: string
+          rebate_program_active?: boolean
+          reliability_score: number
+        }
+        Update: {
+          id?: string
+          lead_time_days?: number
+          lead_time_variability_days?: number
+          name?: string
+          payment_terms?: string
+          rebate_program_active?: boolean
+          reliability_score?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +347,32 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      abc_class: "A" | "B" | "C"
+      climate_zone: "cold" | "temperate" | "hot" | "freeze_prone"
+      customer_type:
+        | "contractor"
+        | "walk_in"
+        | "project"
+        | "builder"
+        | "service_company"
+      po_status: "pending" | "in_transit" | "received" | "late"
+      product_category:
+        | "PVC"
+        | "copper"
+        | "PEX"
+        | "water_heaters"
+        | "refrigerants"
+        | "HVAC_equipment"
+        | "controls"
+        | "service_parts"
+        | "fittings"
+        | "valves"
+      seasonality_pattern:
+        | "cooling_peak"
+        | "heating_peak"
+        | "freeze_event"
+        | "none"
+      xyz_class: "X" | "Y" | "Z"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +499,36 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      abc_class: ["A", "B", "C"],
+      climate_zone: ["cold", "temperate", "hot", "freeze_prone"],
+      customer_type: [
+        "contractor",
+        "walk_in",
+        "project",
+        "builder",
+        "service_company",
+      ],
+      po_status: ["pending", "in_transit", "received", "late"],
+      product_category: [
+        "PVC",
+        "copper",
+        "PEX",
+        "water_heaters",
+        "refrigerants",
+        "HVAC_equipment",
+        "controls",
+        "service_parts",
+        "fittings",
+        "valves",
+      ],
+      seasonality_pattern: [
+        "cooling_peak",
+        "heating_peak",
+        "freeze_event",
+        "none",
+      ],
+      xyz_class: ["X", "Y", "Z"],
+    },
   },
 } as const
