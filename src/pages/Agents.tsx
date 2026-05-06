@@ -187,6 +187,13 @@ export default function Agents() {
                 <Switch checked={autoRun} onCheckedChange={setAutoRun} />
               </div>
             </div>
+            <Button variant="outline" onClick={() => setAuditFor(null)} className="gap-1">
+              <History className="h-4 w-4" /> Audit log
+            </Button>
+            <Button variant="outline" onClick={draftMissingNarratives} disabled={draftingNarratives} className="gap-1">
+              <RefreshCw className={cn("h-4 w-4", draftingNarratives && "animate-spin")} />
+              {draftingNarratives ? "Drafting…" : "Draft missing narratives"}
+            </Button>
             <Button onClick={runSensePass} disabled={running} size="lg">
               {running ? "Running…" : "Run Sense Pass"}
             </Button>
