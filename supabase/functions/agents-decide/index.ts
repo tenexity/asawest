@@ -47,12 +47,16 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const ids: string[] | undefined = body.ids;
     const sb = createClient(SUPABASE_URL, SERVICE_KEY);
-    let q = sb.from("insights").select("id, type, evidence_json, recommended_action_json").eq("status", "new").is("narrative", null).limit(50);
-    if (ids?.length) q = sb.from("insights").select("id, type, evidence_json, recommended_action_json").in("id", ids);
-    else q = sb.from("insights").select("id, type, evidence_json, recommended_action_json").eq("status", "new").or("narrative.eq.,narrative.is.null").limit(50);
-
-    const { data: insights, error } = await q;
-    if (error) throw error;
+    let insights: any[] = [];
+    if (ids?.length) {
+      const { data, error } = await sb.from("insights").select("id, type, evidence_json, recommended_action_json").in("id", ids);
+      if (error) throw error;
+      insights = data ?? [];
+    } else {
+      const { data, error } = await sb.from("insights").select("id, type, evidence_json, recommended_action_json").eq("status", "new").or("narrative.is.null,narrative.eq.").limit(50);
+      if (error) throw error;
+      insights = data ?? [];
+    }
     let updated = 0;
     for (const ins of insights ?? []) {
       const { narrative, action } = await callClaude(ins.evidence_json, ins.type);
