@@ -230,6 +230,12 @@ export default function Agents() {
         insight={editing as any}
         onSave={async (edited) => { if (editing) await approve(editing, edited); setEditing(null); }}
       />
+      <ApproveConfirmDialog
+        open={!!confirming}
+        onOpenChange={(o) => !o && setConfirming(null)}
+        insight={confirming}
+        onConfirm={() => { if (confirming) approve(confirming); }}
+      />
       <AuditLogDialog
         open={auditFor !== undefined}
         onOpenChange={(o) => !o && setAuditFor(undefined)}
