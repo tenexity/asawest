@@ -33,7 +33,7 @@ const App = () => (
               <Route path="/reorder" element={<Placeholder title="Reorder Recommendations" />} />
               <Route path="/network" element={<NetworkGraph />} />
               <Route path="/graph" element={<NetworkGraph />} />
-              <Route path="/agents" element={<Placeholder title="Agents" />} />
+              <Route path="/agents" element={<Agents />} />
               <Route path="/ask" element={<Placeholder title="Ask AI" />} />
               <Route path="/connect" element={<ConnectData />} />
               <Route path="/settings" element={<Placeholder title="Settings" />} />
