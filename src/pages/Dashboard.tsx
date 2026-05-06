@@ -254,6 +254,13 @@ export default function Dashboard() {
   for (const r of inventory) {
     if (r.products?.unit_cost != null) costByProduct.set(r.product_id, r.products.unit_cost);
   }
+  // Inventory turns: annualized COGS / inventory value, using 90-day window.
+  const cogs90Total = sales.reduce(
+    (a, s) => a + s.quantity * (costByProduct.get(s.product_id) ?? 0),
+    0,
+  );
+  const turns = totalValue > 0 ? (cogs90Total * (365 / 90)) / totalValue : 0;
+
   // Universe of pairs that have sold at least once in the last 90 days (= "active")
   const activePairs = new Set<string>();
   for (const s of sales) activePairs.add(`${s.branch_id}|${s.product_id}`);
