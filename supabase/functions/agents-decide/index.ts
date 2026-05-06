@@ -47,13 +47,15 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const ids: string[] | undefined = body.ids;
     const sb = createClient(SUPABASE_URL, SERVICE_KEY);
+    const MAX = 40;
     let insights: any[] = [];
     if (ids?.length) {
-      const { data, error } = await sb.from("insights").select("id, type, evidence_json, recommended_action_json").in("id", ids).limit(20);
+      const { data, error } = await sb.from("insights").select("id, type, evidence_json, recommended_action_json, narrative").in("id", ids).limit(MAX);
       if (error) throw error;
-      insights = data ?? [];
+      // Only those still missing a narrative
+      insights = (data ?? []).filter((i: any) => !i.narrative || i.narrative.trim() === "");
     } else {
-      const { data, error } = await sb.from("insights").select("id, type, evidence_json, recommended_action_json").eq("status", "new").or("narrative.is.null,narrative.eq.").limit(20);
+      const { data, error } = await sb.from("insights").select("id, type, evidence_json, recommended_action_json").eq("status", "new").or("narrative.is.null,narrative.eq.").limit(MAX);
       if (error) throw error;
       insights = data ?? [];
     }
