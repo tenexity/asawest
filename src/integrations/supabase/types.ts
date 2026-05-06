@@ -70,6 +70,48 @@ export type Database = {
           },
         ]
       }
+      insights: {
+        Row: {
+          created_at: string
+          evidence_json: Json
+          financial_impact_usd: number
+          id: string
+          narrative: string
+          recommended_action_json: Json
+          resolved_at: string | null
+          severity: Database["public"]["Enums"]["insight_severity"]
+          status: Database["public"]["Enums"]["insight_status"]
+          title: string
+          type: Database["public"]["Enums"]["insight_type"]
+        }
+        Insert: {
+          created_at?: string
+          evidence_json?: Json
+          financial_impact_usd?: number
+          id?: string
+          narrative?: string
+          recommended_action_json?: Json
+          resolved_at?: string | null
+          severity: Database["public"]["Enums"]["insight_severity"]
+          status?: Database["public"]["Enums"]["insight_status"]
+          title: string
+          type: Database["public"]["Enums"]["insight_type"]
+        }
+        Update: {
+          created_at?: string
+          evidence_json?: Json
+          financial_impact_usd?: number
+          id?: string
+          narrative?: string
+          recommended_action_json?: Json
+          resolved_at?: string | null
+          severity?: Database["public"]["Enums"]["insight_severity"]
+          status?: Database["public"]["Enums"]["insight_status"]
+          title?: string
+          type?: Database["public"]["Enums"]["insight_type"]
+        }
+        Relationships: []
+      }
       inventory_levels: {
         Row: {
           allocated: number
@@ -117,6 +159,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      markdown_candidates: {
+        Row: {
+          branch_id: string
+          created_at: string
+          estimated_value: number
+          excess_qty: number
+          id: string
+          product_id: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          estimated_value?: number
+          excess_qty: number
+          id?: string
+          product_id: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          estimated_value?: number
+          excess_qty?: number
+          id?: string
+          product_id?: string
+        }
+        Relationships: []
       }
       products: {
         Row: {
@@ -176,6 +245,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      promoted_substitutes: {
+        Row: {
+          product_id: string
+          promoted_at: string
+          substitute_product_id: string
+        }
+        Insert: {
+          product_id: string
+          promoted_at?: string
+          substitute_product_id: string
+        }
+        Update: {
+          product_id?: string
+          promoted_at?: string
+          substitute_product_id?: string
+        }
+        Relationships: []
       }
       purchase_order_items: {
         Row: {
@@ -497,6 +584,39 @@ export type Database = {
         }
         Relationships: []
       }
+      transfer_orders: {
+        Row: {
+          created_at: string
+          dest_branch_id: string
+          expected_arrival: string | null
+          id: string
+          product_id: string
+          quantity: number
+          source_branch_id: string
+          status: Database["public"]["Enums"]["transfer_status"]
+        }
+        Insert: {
+          created_at?: string
+          dest_branch_id: string
+          expected_arrival?: string | null
+          id?: string
+          product_id: string
+          quantity: number
+          source_branch_id: string
+          status?: Database["public"]["Enums"]["transfer_status"]
+        }
+        Update: {
+          created_at?: string
+          dest_branch_id?: string
+          expected_arrival?: string | null
+          id?: string
+          product_id?: string
+          quantity?: number
+          source_branch_id?: string
+          status?: Database["public"]["Enums"]["transfer_status"]
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -513,6 +633,15 @@ export type Database = {
         | "project"
         | "builder"
         | "service_company"
+      insight_severity: "critical" | "high" | "medium" | "low"
+      insight_status: "new" | "approved" | "rejected" | "snoozed" | "executed"
+      insight_type:
+        | "stockout_risk"
+        | "excess_inventory"
+        | "supplier_delay_impact"
+        | "substitution_opportunity"
+        | "rebate_opportunity"
+        | "inter_branch_transfer"
       po_status: "pending" | "in_transit" | "received" | "late" | "draft"
       product_category:
         | "PVC"
@@ -531,6 +660,7 @@ export type Database = {
         | "heating_peak"
         | "freeze_event"
         | "none"
+      transfer_status: "pending" | "in_transit" | "received" | "cancelled"
       urgency_level: "critical" | "high" | "medium" | "low"
       xyz_class: "X" | "Y" | "Z"
     }
@@ -669,6 +799,16 @@ export const Constants = {
         "builder",
         "service_company",
       ],
+      insight_severity: ["critical", "high", "medium", "low"],
+      insight_status: ["new", "approved", "rejected", "snoozed", "executed"],
+      insight_type: [
+        "stockout_risk",
+        "excess_inventory",
+        "supplier_delay_impact",
+        "substitution_opportunity",
+        "rebate_opportunity",
+        "inter_branch_transfer",
+      ],
       po_status: ["pending", "in_transit", "received", "late", "draft"],
       product_category: [
         "PVC",
@@ -689,6 +829,7 @@ export const Constants = {
         "freeze_event",
         "none",
       ],
+      transfer_status: ["pending", "in_transit", "received", "cancelled"],
       urgency_level: ["critical", "high", "medium", "low"],
       xyz_class: ["X", "Y", "Z"],
     },
