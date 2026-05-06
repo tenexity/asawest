@@ -311,42 +311,26 @@ export default function Skus() {
                 {head("SKU", "sku")}
                 {head("Description", "description")}
                 {head("Category", "category")}
-                <TableHead>
-                  <span className="inline-flex items-center gap-1">
-                    ABC/XYZ
+                {head("On-hand", "totalOnHand", "right")}
+                {head("Days of Supply", "daysOfSupply", "right")}
+                {head("Status", "status")}
+                <TableHead className="text-right">
+                  <span className="inline-flex items-center gap-1 text-muted-foreground font-normal">
+                    Classification
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="What is ABC/XYZ?">
+                          <button type="button" className="hover:text-foreground" aria-label="What is classification?">
                             <Info className="h-3 w-3" />
                           </button>
                         </TooltipTrigger>
-                        <TooltipContent side="bottom" className="max-w-xs text-xs">
-                          Two-axis SKU classification used to set service levels and stocking strategy.
-                          <div className="mt-1">
-                            <span className="font-medium">ABC — value / volume:</span>
-                            <ul className="list-disc pl-4 space-y-0.5">
-                              <li><span className="font-medium">A</span>: top ~20% by revenue (tight control, 98% service level)</li>
-                              <li><span className="font-medium">B</span>: next ~30% (95% service level)</li>
-                              <li><span className="font-medium">C</span>: long tail (90% service level)</li>
-                            </ul>
-                          </div>
-                          <div className="mt-1">
-                            <span className="font-medium">XYZ — demand predictability:</span>
-                            <ul className="list-disc pl-4 space-y-0.5">
-                              <li><span className="font-medium">X</span>: steady, easy to forecast</li>
-                              <li><span className="font-medium">Y</span>: variable / seasonal</li>
-                              <li><span className="font-medium">Z</span>: lumpy or intermittent — hardest to forecast</li>
-                            </ul>
-                          </div>
+                        <TooltipContent side="left" className="max-w-xs text-xs">
+                          A two-part tag the system uses behind the scenes to set service levels and forecasting strategy. Read it as <span className="font-medium">value · demand pattern</span> (e.g. "High value · Steady"). You don't need to act on it directly — it shapes the recommendations on the Reorder page.
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   </span>
                 </TableHead>
-                {head("On-hand", "totalOnHand", "right")}
-                {head("Days of Supply", "daysOfSupply", "right")}
-                {head("Status", "status")}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -359,22 +343,6 @@ export default function Skus() {
                   <TableCell className="font-mono text-xs">{r.sku}</TableCell>
                   <TableCell className="max-w-[320px] truncate">{r.description}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{r.category}</TableCell>
-                  <TableCell className="text-xs" onClick={(e) => e.stopPropagation()}>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button type="button" className="underline decoration-dotted underline-offset-2 hover:text-foreground">
-                            {r.abc}/{r.xyz}
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="right" className="max-w-xs text-xs">
-                          <div><span className="font-medium">{r.abc}</span> — {ABC_LABEL[r.abc] ?? "value class"}</div>
-                          <div><span className="font-medium">{r.xyz}</span> — {XYZ_LABEL[r.xyz] ?? "demand class"}</div>
-                          <div className="mt-1 text-muted-foreground">{combinedHint(r.abc, r.xyz)}</div>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </TableCell>
                   <TableCell className="text-right tabular-nums">{r.totalOnHand.toLocaleString()}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {r.daysOfSupply === null ? "—" : Math.round(r.daysOfSupply)}
@@ -383,6 +351,22 @@ export default function Skus() {
                     <Badge variant="outline" className={cn("text-xs", statusToken[r.status])}>
                       {r.status}
                     </Badge>
+                  </TableCell>
+                  <TableCell className="text-right text-xs text-muted-foreground" onClick={(e) => e.stopPropagation()}>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button type="button" className="hover:text-foreground">
+                            {ABC_TIER[r.abc] ?? r.abc} · {XYZ_TIER[r.xyz] ?? r.xyz}
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="left" className="max-w-xs text-xs">
+                          <div><span className="font-medium">{ABC_TIER[r.abc] ?? r.abc} value</span> — {ABC_LABEL[r.abc]}</div>
+                          <div><span className="font-medium">{XYZ_TIER[r.xyz] ?? r.xyz} demand</span> — {XYZ_LABEL[r.xyz]}</div>
+                          <div className="mt-1 text-muted-foreground">{combinedHint(r.abc, r.xyz)}</div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </TableCell>
                 </TableRow>
               ))}
