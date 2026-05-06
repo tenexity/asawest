@@ -20,7 +20,7 @@ const GUIDES: Record<string, Guide> = {
     title: "SKU Explorer",
     intro: "Search, filter, and inspect every SKU in your catalog.",
     steps: [
-      "Search by SKU code or description, or filter by category and ABC/XYZ class.",
+      "Search by SKU code or description, or filter by category, value tier, and demand pattern.",
       "Toggle 'Problems only' to hide healthy items (see the info icon for definitions).",
       "Click any row to open the SKU detail page with demand history and forecasts.",
     ],
