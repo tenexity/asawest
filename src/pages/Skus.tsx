@@ -208,6 +208,8 @@ export default function Skus() {
         if (abc !== "all" && r.abc !== abc) return false;
         if (xyz !== "all" && r.xyz !== xyz) return false;
         if (problemsOnly && (r.status === "Healthy" || r.status === "Watch")) return false;
+        // Dead stock = on-hand > 0 AND zero demand in the last 30 days
+        if (deadOnly && !(r.totalOnHand > 0 && r.dailyDemand === 0)) return false;
         return true;
       })
       .sort((a, b) => {
@@ -223,7 +225,7 @@ export default function Skus() {
         if (typeof va === "number" && typeof vb === "number") return (va - vb) * dir;
         return String(va).localeCompare(String(vb)) * dir;
       });
-  }, [rows, q, category, abc, xyz, problemsOnly, sortKey, sortDir]);
+  }, [rows, q, category, abc, xyz, problemsOnly, deadOnly, sortKey, sortDir]);
 
   const head = (label: string, key: SortKey, align: "left" | "right" = "left") => (
     <TableHead
