@@ -291,8 +291,33 @@ export default function Skus() {
           </SelectContent>
         </Select>
         <div className="flex items-center gap-2 ml-auto px-2">
+          <Switch
+            id="dead"
+            checked={deadOnly}
+            onCheckedChange={(v) => {
+              setDeadOnly(v);
+              const next = new URLSearchParams(searchParams);
+              if (v) next.set("filter", "dead");
+              else next.delete("filter");
+              setSearchParams(next, { replace: true });
+            }}
+          />
+          <Label htmlFor="dead" className="text-sm whitespace-nowrap">Dead stock only</Label>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="What is dead stock?">
+                  <Info className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs text-xs">
+                On-hand inventory with <span className="font-medium">zero sales in the last 30 days</span>.
+                This is trapped working capital — convert it via markdown, transfer, or substitution.
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <Switch id="problems" checked={problemsOnly} onCheckedChange={setProblemsOnly} />
-          <Label htmlFor="problems" className="text-sm">Problems only</Label>
+          <Label htmlFor="problems" className="text-sm whitespace-nowrap">Problems only</Label>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
