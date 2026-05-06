@@ -11,6 +11,7 @@ import SkuDetail from "./pages/SkuDetail";
 import ConnectData from "./pages/ConnectData";
 import Placeholder from "./pages/Placeholder";
 import NetworkGraph from "./pages/NetworkGraph";
+import Agents from "./pages/Agents";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound.tsx";
 
