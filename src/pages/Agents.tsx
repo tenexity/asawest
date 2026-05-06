@@ -299,10 +299,12 @@ export default function Agents() {
 }
 
 function InsightCard({
-  insight, onApprove, onStatus,
+  insight, onApprove, onEdit, onAudit, onStatus,
 }: {
   insight: Insight;
   onApprove: (i: Insight) => void;
+  onEdit: (i: Insight) => void;
+  onAudit: (i: Insight) => void;
   onStatus: (id: string, status: Insight["status"]) => void;
 }) {
   const meta = TYPE_META[insight.type];
