@@ -67,6 +67,9 @@ export default function Agents() {
   const [filterType, setFilterType] = useState<string>("all");
   const [filterSeverity, setFilterSeverity] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("active");
+  const [editing, setEditing] = useState<Insight | null>(null);
+  const [auditFor, setAuditFor] = useState<string | null | undefined>(undefined);
+  const [draftingNarratives, setDraftingNarratives] = useState(false);
 
   async function load() {
     const { data, error } = await supabase
@@ -103,10 +106,36 @@ export default function Agents() {
     }
   }
 
-  async function approve(insight: Insight) {
-    const { error } = await supabase.functions.invoke("agents-act", { body: { insight_id: insight.id } });
+  async function draftMissingNarratives() {
+    const missing = insights.filter((i) => !i.narrative || i.narrative.trim() === "");
+    if (missing.length === 0) { toast.success("All insights already have narratives."); return; }
+    setDraftingNarratives(true);
+    try {
+      const CHUNK = 30;
+      let total = 0;
+      for (let i = 0; i < missing.length; i += CHUNK) {
+        const ids = missing.slice(i, i + CHUNK).map((m) => m.id);
+        toast.message(`Drafting ${i + 1}-${Math.min(i + CHUNK, missing.length)} of ${missing.length}…`);
+        const { data, error } = await supabase.functions.invoke("agents-decide", { body: { ids } });
+        if (error) throw error;
+        total += data?.updated ?? 0;
+      }
+      toast.success(`Drafted ${total} narratives`);
+      await load();
+    } catch (err: any) {
+      toast.error(err.message ?? "Drafting failed");
+    } finally {
+      setDraftingNarratives(false);
+    }
+  }
+
+  async function approve(insight: Insight, edited_action?: any) {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase.functions.invoke("agents-act", {
+      body: { insight_id: insight.id, user_id: user?.id, edited_action },
+    });
     if (error) return toast.error(error.message);
-    toast.success("Action executed");
+    toast.success("Action executed and logged");
     load();
   }
 
