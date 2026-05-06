@@ -230,17 +230,9 @@ export default function Dashboard() {
   }
   const avgDos = dosCount ? dosSum / dosCount : 0;
 
-  // Inventory turns: annualized COGS / avg inventory value (last 90 days)
-  const cogs90 = sales.reduce(
-    (a, s) =>
-      a +
-      s.quantity *
-        (inventory.find(
-          (i) => i.product_id === s.product_id && i.branch_id === s.branch_id,
-        )?.products?.unit_cost ?? 0),
-    0,
-  );
-  const turns = totalValue > 0 ? (cogs90 * 4) / totalValue : 0;
+  // Inventory turns: annualized COGS / avg inventory value.
+  // Use the precomputed costByProduct map (built below) — defer calc until after it.
+
 
   // ---------- Daily time-series from sales_history ----------
   // Build a 30-day window of: total demand, COGS, and distinct (product,branch)
