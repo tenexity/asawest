@@ -228,23 +228,91 @@ export default function Dashboard() {
   );
   const turns = totalValue > 0 ? (cogs90 * 4) / totalValue : 0;
 
-  // Build sparklines: stockouts and value are static; demand-based ones use sales 30d
-  const dayCounts: Record<string, number> = {};
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    dayCounts[day(d)] = 0;
-  }
-  for (const s of sales30) {
-    if (dayCounts[s.sale_date] !== undefined) dayCounts[s.sale_date] += s.quantity;
-  }
-  const demandSpark = Object.entries(dayCounts).map(([x, y]) => ({ x, y }));
+  // ---------- Daily time-series from sales_history ----------
+  // Build a 30-day window of: total demand, COGS, and distinct (product,branch)
+  // pairs that had any sales. We use "active pairs that went silent" as a proxy
+  // for daily stockouts (we don't store historical on_hand).
+  const lastNDays = (n: number) => {
+    const arr: string[] = [];
+    for (let i = n - 1; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      arr.push(day(d));
+    }
+    return arr;
+  };
+  const days30 = lastNDays(30);
 
-  // Stockout trend (approx): we don't have history of stockouts; show flat current
-  const stockoutTrend = demandSpark.map((d) => ({
-    x: d.x,
-    y: stockoutPairs.length,
+  // Cost lookup
+  const costByProduct = new Map<string, number>();
+  for (const r of inventory) {
+    if (r.products?.unit_cost != null) costByProduct.set(r.product_id, r.products.unit_cost);
+  }
+  // Universe of pairs that have sold at least once in the last 90 days (= "active")
+  const activePairs = new Set<string>();
+  for (const s of sales) activePairs.add(`${s.branch_id}|${s.product_id}`);
+  const totalActivePairs = Math.max(1, activePairs.size);
+
+  const demandPerDay = new Map<string, number>(days30.map((d) => [d, 0]));
+  const cogsPerDay = new Map<string, number>(days30.map((d) => [d, 0]));
+  const pairsSoldPerDay = new Map<string, Set<string>>(days30.map((d) => [d, new Set<string>()]));
+  for (const s of sales30) {
+    if (!demandPerDay.has(s.sale_date)) continue;
+    demandPerDay.set(s.sale_date, (demandPerDay.get(s.sale_date) ?? 0) + s.quantity);
+    cogsPerDay.set(
+      s.sale_date,
+      (cogsPerDay.get(s.sale_date) ?? 0) + s.quantity * (costByProduct.get(s.product_id) ?? 0),
+    );
+    pairsSoldPerDay.get(s.sale_date)!.add(`${s.branch_id}|${s.product_id}`);
+  }
+
+  const demandSpark = days30.map((d) => ({ x: d, y: demandPerDay.get(d) ?? 0 }));
+  const cogsSpark = days30.map((d) => ({ x: d, y: Math.round(cogsPerDay.get(d) ?? 0) }));
+  // Approx daily stockout count: active pairs that did NOT sell that day.
+  const stockoutTrend = days30.map((d) => ({
+    x: d,
+    y: totalActivePairs - (pairsSoldPerDay.get(d)?.size ?? 0),
   }));
+  // Daily fill-rate proxy: % of active pairs that moved at least one unit.
+  const fillSpark = days30.map((d) => ({
+    x: d,
+    y: ((pairsSoldPerDay.get(d)?.size ?? 0) / totalActivePairs) * 100,
+  }));
+  // Daily inventory-value proxy: today's value minus cumulative COGS already shipped.
+  let cum = 0;
+  const valueSpark = days30.map((d) => {
+    cum += cogsPerDay.get(d) ?? 0;
+    return { x: d, y: Math.max(0, totalValue - (cum - (cogsPerDay.get(days30[0]) ?? 0))) };
+  });
+
+  // ---------- Period-over-period deltas ----------
+  const avg = (arr: { y: number }[]) => (arr.length ? arr.reduce((a, b) => a + b.y, 0) / arr.length : 0);
+  // Build prev-30 series the same way (lighter — only need averages)
+  const prevDemand = sales60to30.reduce((a, s) => a + s.quantity, 0);
+  const prevCogs = sales60to30.reduce(
+    (a, s) => a + s.quantity * (costByProduct.get(s.product_id) ?? 0),
+    0,
+  );
+  const demandDelta = prevDemand ? ((demand30 - prevDemand) / prevDemand) * 100 : 0;
+  const cogsTotal30 = cogsSpark.reduce((a, b) => a + b.y, 0);
+  const cogsDelta = prevCogs ? ((cogsTotal30 - prevCogs) / prevCogs) * 100 : 0;
+  const pairsSoldRecent = avg(fillSpark);
+  // Use first vs second half of the 30-day window for fill / stockout deltas
+  const half = Math.floor(days30.length / 2);
+  const firstHalf = (s: { y: number }[]) => s.slice(0, half);
+  const secondHalf = (s: { y: number }[]) => s.slice(half);
+  const fillDeltaPct = (() => {
+    const a = avg(firstHalf(fillSpark));
+    const b = avg(secondHalf(fillSpark));
+    return a ? ((b - a) / a) * 100 : 0;
+  })();
+  const stockoutDeltaPct = (() => {
+    const a = avg(firstHalf(stockoutTrend));
+    const b = avg(secondHalf(stockoutTrend));
+    return a ? ((b - a) / a) * 100 : 0;
+  })();
+  const fillRateLive = pairsSoldRecent > 0 ? pairsSoldRecent : fillRate;
+
 
   // Top 10 problem SKUs by severity = (reorder_point - on_hand) / max(reorder_point,1)
   const problems = inventory
@@ -324,16 +392,16 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
         <KpiCard
           label="Fill Rate"
-          value={`${fillRate.toFixed(1)}%`}
-          delta={fillDelta}
-          spark={demandSpark.map((d) => ({ x: d.x, y: fillRate }))}
-          color={fillRate >= 95 ? successColor : fillRate >= 90 ? warningColor : dangerColor}
-          hint="Target > 95%"
+          value={`${fillRateLive.toFixed(1)}%`}
+          delta={fillDeltaPct}
+          spark={fillSpark}
+          color={fillRateLive >= 95 ? successColor : fillRateLive >= 90 ? warningColor : dangerColor}
+          hint="Active SKUs moving daily"
         />
         <KpiCard
           label="Active Stockouts"
           value={fmtNum(stockoutPairs.length)}
-          delta={0}
+          delta={stockoutDeltaPct}
           invertDelta
           spark={stockoutTrend}
           color={stockoutPairs.length > 0 ? dangerColor : successColor}
@@ -342,15 +410,16 @@ export default function Dashboard() {
         <KpiCard
           label="Inventory Value"
           value={fmtCurrency(totalValue)}
-          delta={0}
-          spark={demandSpark}
+          delta={cogsDelta}
+          invertDelta
+          spark={valueSpark}
           color={successColor}
-          hint="Sum of on-hand × cost"
+          hint="On-hand × cost"
         />
         <KpiCard
           label="Avg Days of Supply"
           value={avgDos.toFixed(0)}
-          delta={demandPrev ? ((demand30 - demandPrev) / demandPrev) * 100 : 0}
+          delta={demandDelta}
           invertDelta
           spark={demandSpark}
           color={avgDos > 180 ? warningColor : avgDos < 14 ? dangerColor : successColor}
@@ -359,8 +428,8 @@ export default function Dashboard() {
         <KpiCard
           label="Inventory Turns"
           value={`${turns.toFixed(2)}x`}
-          delta={0}
-          spark={demandSpark}
+          delta={cogsDelta}
+          spark={cogsSpark}
           color={turns >= 4 ? successColor : turns >= 2 ? warningColor : dangerColor}
           hint="Annualized, last 90d"
         />
@@ -422,15 +491,15 @@ export default function Dashboard() {
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <Card className="p-4">
-          <h2 className="font-semibold mb-3">30-day Stockout Trend</h2>
+          <h2 className="font-semibold mb-3">30-day Daily Demand (units)</h2>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={stockoutTrend}>
+              <LineChart data={demandSpark}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="x" tick={{ fontSize: 10 }} hide />
+                <XAxis dataKey="x" tick={{ fontSize: 10 }} tickFormatter={(d) => d.slice(5)} />
                 <YAxis tick={{ fontSize: 10 }} />
                 <Tooltip />
-                <Line type="monotone" dataKey="y" stroke={dangerColor} strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="y" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
