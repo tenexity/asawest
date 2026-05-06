@@ -10,11 +10,14 @@ import {
 } from "@/components/ui/select";
 import {
   AlertTriangle, Boxes, TruckIcon, Repeat, BadgePercent, ArrowLeftRight,
-  ChevronDown, Check, X, Clock, Edit, Sparkles, CheckCircle2,
+  ChevronDown, Check, X, Clock, Edit, Sparkles, CheckCircle2, History, RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
+import { humanizeEvidence } from "@/lib/evidence-format";
+import { EditActionDialog } from "@/components/EditActionDialog";
+import { AuditLogDialog } from "@/components/AuditLogDialog";
 
 type Insight = {
   id: string;
