@@ -399,15 +399,19 @@ export default function SkuDetail() {
         </div>
       </Card>
 
-      {/* Forecast tournament */}
+      {/* Forecast model comparison */}
       <Card className="p-4">
         <div className="flex items-center justify-between mb-3">
           <div>
             <h2 className="font-semibold inline-flex items-center gap-2">
-              <Trophy className="h-4 w-4 text-warning" /> Forecast Tournament
+              <Trophy className="h-4 w-4 text-warning" /> Forecast Model Comparison
             </h2>
             <p className="text-xs text-muted-foreground">
-              13-week forecast · winner picked by wMAPE on the last 8 weeks
+              We run 4 different forecasting methods (moving average, exponential smoothing,
+              Croston for intermittent demand, seasonal naive) against this SKU's last 8 weeks
+              of actual sales. Whichever model predicted the past most accurately (lowest wMAPE
+              error) is shown as the <span className="font-medium text-foreground">winner</span> and
+              used to project the next 13 weeks.
             </p>
           </div>
           <Button size="sm" variant="outline" onClick={() => recomputeAndExplain(true)}>
