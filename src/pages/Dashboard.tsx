@@ -145,15 +145,29 @@ export default function Dashboard() {
           return { data: all };
         })(),
         (async () => {
+          // Paginate to bypass PostgREST 1k row cap. 90 days keeps payload sane.
           const since = new Date();
-          since.setDate(since.getDate() - 120);
-          let q = supabase
-            .from("sales_history")
-            .select("sale_date,quantity,branch_id,product_id")
-            .gte("sale_date", since.toISOString().slice(0, 10))
-            .limit(50000);
-          if (branchId !== "all") q = q.eq("branch_id", branchId);
-          return q;
+          since.setDate(since.getDate() - 90);
+          const sinceStr = since.toISOString().slice(0, 10);
+          const all: SaleRow[] = [];
+          const pageSize = 1000;
+          let from = 0;
+          while (true) {
+            let q = supabase
+              .from("sales_history")
+              .select("sale_date,quantity,branch_id,product_id")
+              .gte("sale_date", sinceStr)
+              .order("sale_date", { ascending: false })
+              .range(from, from + pageSize - 1);
+            if (branchId !== "all") q = q.eq("branch_id", branchId);
+            const { data, error } = await q;
+            if (error || !data || data.length === 0) break;
+            all.push(...(data as SaleRow[]));
+            if (data.length < pageSize) break;
+            from += pageSize;
+            if (from > 500000) break; // safety
+          }
+          return { data: all };
         })(),
       ]);
       if (cancelled) return;
