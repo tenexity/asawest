@@ -230,6 +230,20 @@ export default function Dashboard() {
   }
   const avgDos = dosCount ? dosSum / dosCount : 0;
 
+  // Dead stock: pairs with on_hand > 0 but zero demand in the last 90 days.
+  // This is trapped working capital — the ripest opportunity to convert to cash.
+  const pairsWithDemand90 = new Set<string>();
+  for (const s of sales) pairsWithDemand90.add(`${s.branch_id}|${s.product_id}`);
+  let deadStockValue = 0;
+  let deadStockPairs = 0;
+  for (const r of inventory) {
+    if (r.on_hand > 0 && !pairsWithDemand90.has(`${r.branch_id}|${r.product_id}`)) {
+      deadStockValue += r.on_hand * (r.products?.unit_cost ?? 0);
+      deadStockPairs++;
+    }
+  }
+  const deadStockPct = totalValue > 0 ? (deadStockValue / totalValue) * 100 : 0;
+
   // Inventory turns: annualized COGS / avg inventory value.
   // Use the precomputed costByProduct map (built below) — defer calc until after it.
 
@@ -436,7 +450,7 @@ export default function Dashboard() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
         <KpiCard
           label="Fill Rate"
           value={`${fillRateLive.toFixed(1)}%`}
@@ -462,6 +476,14 @@ export default function Dashboard() {
           spark={valueSpark}
           color={successColor}
           hint="On-hand × cost"
+        />
+        <KpiCard
+          label="Dead Stock"
+          value={fmtCurrency(deadStockValue)}
+          delta={0}
+          spark={days30.map((d) => ({ x: d, y: deadStockValue }))}
+          color={deadStockPct > 5 ? dangerColor : deadStockPct > 2 ? warningColor : successColor}
+          hint={`${fmtNum(deadStockPairs)} SKUs · ${deadStockPct.toFixed(1)}% of inventory · 0 sales 90d`}
         />
         <KpiCard
           label="Avg Days of Supply"
