@@ -491,15 +491,15 @@ export default function Dashboard() {
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <Card className="p-4">
-          <h2 className="font-semibold mb-3">30-day Stockout Trend</h2>
+          <h2 className="font-semibold mb-3">30-day Daily Demand (units)</h2>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={stockoutTrend}>
+              <LineChart data={demandSpark}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="x" tick={{ fontSize: 10 }} hide />
+                <XAxis dataKey="x" tick={{ fontSize: 10 }} tickFormatter={(d) => d.slice(5)} />
                 <YAxis tick={{ fontSize: 10 }} />
                 <Tooltip />
-                <Line type="monotone" dataKey="y" stroke={dangerColor} strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="y" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
