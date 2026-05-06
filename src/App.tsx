@@ -35,7 +35,8 @@ const App = () => (
               <Route path="/network" element={<NetworkGraph />} />
               <Route path="/graph" element={<NetworkGraph />} />
               <Route path="/agents" element={<Agents />} />
-              <Route path="/ask" element={<Placeholder title="Ask AI" />} />
+              <Route path="/ask" element={<Chat />} />
+              <Route path="/chat" element={<Chat />} />
               <Route path="/connect" element={<ConnectData />} />
               <Route path="/settings" element={<Placeholder title="Settings" />} />
             </Route>
