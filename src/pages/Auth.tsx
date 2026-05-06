@@ -11,21 +11,29 @@ import { Droplets } from "lucide-react";
 export default function Auth() {
   const { session, loading } = useAuth();
   const [email, setEmail] = useState("");
-  const [sending, setSending] = useState(false);
+  const [password, setPassword] = useState("");
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [busy, setBusy] = useState(false);
 
   if (loading) return null;
   if (session) return <Navigate to="/" replace />;
 
-  const sendLink = async (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSending(true);
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: window.location.origin },
-    });
-    setSending(false);
-    if (error) toast.error(error.message);
-    else toast.success("Magic link sent. Check your inbox.");
+    setBusy(true);
+    if (mode === "signup") {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: `${window.location.origin}/` },
+      });
+      if (error) toast.error(error.message);
+      else toast.success("Account created. Signing in…");
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) toast.error(error.message);
+    }
+    setBusy(false);
   };
 
   return (
@@ -40,8 +48,8 @@ export default function Auth() {
             <p className="text-xs text-muted-foreground mt-1">Inventory intelligence</p>
           </div>
         </div>
-        <form onSubmit={sendLink} className="space-y-3">
-          <label className="text-sm font-medium">Work email</label>
+        <form onSubmit={submit} className="space-y-3">
+          <label className="text-sm font-medium">Email</label>
           <Input
             type="email"
             required
@@ -49,12 +57,25 @@ export default function Auth() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
-          <Button type="submit" className="w-full" disabled={sending}>
-            {sending ? "Sending…" : "Send magic link"}
+          <label className="text-sm font-medium">Password</label>
+          <Input
+            type="password"
+            required
+            minLength={6}
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <Button type="submit" className="w-full" disabled={busy}>
+            {busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
           </Button>
-          <p className="text-xs text-muted-foreground">
-            We'll email you a one-tap sign-in link. No password needed.
-          </p>
+          <button
+            type="button"
+            className="text-xs text-muted-foreground hover:text-foreground w-full text-center"
+            onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+          >
+            {mode === "signin" ? "No account? Create one" : "Have an account? Sign in"}
+          </button>
         </form>
       </Card>
     </main>
