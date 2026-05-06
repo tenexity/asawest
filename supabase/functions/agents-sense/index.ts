@@ -119,9 +119,13 @@ async function checkSupplierDelays(sb: any): Promise<Insight[]> {
 async function checkSubstitution(sb: any): Promise<Insight[]> {
   const { data: phaseDown } = await sb.from("products").select("id, sku, description, substitute_product_id, unit_price").eq("is_phase_down", true);
   if (!phaseDown?.length) return [];
+  // Skip SKUs that already have a promoted substitute pairing on file.
+  const { data: alreadyPromoted } = await sb.from("promoted_substitutes").select("product_id");
+  const promotedSet = new Set((alreadyPromoted ?? []).map((r: any) => r.product_id));
   const out: Insight[] = [];
   for (const p of phaseDown) {
     if (!p.substitute_product_id) continue;
+    if (promotedSet.has(p.id)) continue;
     const { data: invOrig } = await sb.from("inventory_levels").select("on_hand").eq("product_id", p.id);
     const { data: invSub } = await sb.from("inventory_levels").select("on_hand").eq("product_id", p.substitute_product_id);
     const origTotal = (invOrig ?? []).reduce((a: number, r: any) => a + r.on_hand, 0);
@@ -138,7 +142,8 @@ async function checkSubstitution(sb: any): Promise<Insight[]> {
       });
     }
   }
-  return out;
+  // Cap to the top 8 highest-impact opportunities to keep the queue actionable.
+  return out.sort((a, b) => b.financial_impact_usd - a.financial_impact_usd).slice(0, 8);
 }
 
 async function checkRebates(sb: any): Promise<Insight[]> {

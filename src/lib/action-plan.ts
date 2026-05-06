@@ -88,7 +88,7 @@ export function buildActionPlan(insight: any): ActionPlan {
         title: "Promote substitute SKU",
         summary: `Marks the substitute as the recommended replacement for ${sku} across pricing & ordering screens.`,
         steps: [
-          { system: "Database", label: "Upsert into promoted_substitutes", detail: "Pairs original product_id ↔ substitute_product_id." },
+          { system: "Database", label: "Save the substitute pairing", detail: "Records the original SKU and its recommended substitute so it appears in pricing & ordering screens." },
           { system: "Database", label: "Mark insight as executed" },
           { system: "Audit", label: "Write entry to action_audit_log" },
         ],
