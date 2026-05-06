@@ -684,7 +684,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      exec_readonly_sql: { Args: { query: string }; Returns: Json }
     }
     Enums: {
       abc_class: "A" | "B" | "C"
