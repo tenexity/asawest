@@ -140,13 +140,6 @@ export default function SkuDetail() {
   const series = useMemo(() => {
     if (granularity === "weekly") {
       const all = aggregateWeekly(sales, 78);
-      const byBranch: Record<string, Record<string, number>> = {};
-      for (const b of branches) byBranch[b.id] = {};
-      for (const s of sales) {
-        const wk = aggregateWeekly([s], 78)[aggregateWeekly([s], 78).length - 1]; // not efficient — use per-branch grouping below
-        if (!wk) continue;
-      }
-      // efficient per-branch grouping
       const perBranch = new Map<string, { week: string; total: number }[]>();
       for (const b of branches) {
         const rows = sales.filter((s) => s.branch_id === b.id);
