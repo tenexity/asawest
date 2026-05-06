@@ -378,7 +378,14 @@ function InsightCard({
           <ChevronDown className="h-3 w-3" /> Evidence
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-2">
-          <pre className="text-[11px] bg-muted/40 rounded p-2 overflow-x-auto">{JSON.stringify(ev, null, 2)}</pre>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs bg-muted/40 rounded p-3">
+            {humanizeEvidence(ev).map((row) => (
+              <div key={row.label} className="flex justify-between gap-2 border-b border-border/40 py-1 last:border-0">
+                <dt className="text-muted-foreground">{row.label}</dt>
+                <dd className="font-medium text-right">{row.value}</dd>
+              </div>
+            ))}
+          </dl>
         </CollapsibleContent>
       </Collapsible>
 
@@ -387,7 +394,7 @@ function InsightCard({
           <Button size="sm" onClick={() => onApprove(insight)} className="gap-1">
             <Check className="h-3 w-3" /> Approve
           </Button>
-          <Button size="sm" variant="ghost" className="gap-1" disabled>
+          <Button size="sm" variant="ghost" className="gap-1" onClick={() => onEdit(insight)}>
             <Edit className="h-3 w-3" /> Edit
           </Button>
           <Button size="sm" variant="ghost" className="gap-1" onClick={() => onStatus(insight.id, "rejected")}>
@@ -398,9 +405,12 @@ function InsightCard({
           </Button>
         </div>
       )}
-      {isExecuted && insight.resolved_at && (
-        <div className="text-xs text-muted-foreground pt-2 border-t border-border">
-          Executed {formatDistanceToNow(new Date(insight.resolved_at), { addSuffix: true })}
+      {isExecuted && (
+        <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border">
+          <span>{insight.resolved_at && <>Executed {formatDistanceToNow(new Date(insight.resolved_at), { addSuffix: true })}</>}</span>
+          <Button size="sm" variant="ghost" className="gap-1 h-7" onClick={() => onAudit(insight)}>
+            <History className="h-3 w-3" /> View action
+          </Button>
         </div>
       )}
     </Card>
