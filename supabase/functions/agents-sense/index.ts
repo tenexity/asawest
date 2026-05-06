@@ -240,8 +240,23 @@ Deno.serve(async (req) => {
       checkSubstitution(sb), checkRebates(sb), checkInterBranchTransfers(sb),
     ]);
     const all = [...a, ...b, ...c, ...d, ...e, ...f];
-    if (all.length) {
-      const rows = all.map((i) => ({ ...i, narrative: "", status: "new" }));
+    // Dedupe within this run by (type|title)
+    const seen = new Set<string>();
+    const unique = all.filter((i) => {
+      const k = `${i.type}|${i.title}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    // Skip insights that already exist as open (not resolved)
+    const { data: existing } = await sb
+      .from("insights")
+      .select("type, title")
+      .is("resolved_at", null);
+    const existingKeys = new Set((existing ?? []).map((r: any) => `${r.type}|${r.title}`));
+    const toInsert = unique.filter((i) => !existingKeys.has(`${i.type}|${i.title}`));
+    if (toInsert.length) {
+      const rows = toInsert.map((i) => ({ ...i, narrative: "", status: "new" }));
       const { data: inserted, error } = await sb.from("insights").insert(rows).select("id");
       if (error) throw error;
       return new Response(JSON.stringify({ created: inserted?.length ?? 0, ids: inserted?.map((r: any) => r.id) }), {

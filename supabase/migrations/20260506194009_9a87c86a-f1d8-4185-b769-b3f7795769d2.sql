@@ -1,0 +1,1 @@
+DELETE FROM insights a USING insights b WHERE a.type = b.type AND a.title = b.title AND a.resolved_at IS NULL AND b.resolved_at IS NULL AND a.created_at > b.created_at;
