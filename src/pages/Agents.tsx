@@ -10,11 +10,14 @@ import {
 } from "@/components/ui/select";
 import {
   AlertTriangle, Boxes, TruckIcon, Repeat, BadgePercent, ArrowLeftRight,
-  ChevronDown, Check, X, Clock, Edit, Sparkles, CheckCircle2,
+  ChevronDown, Check, X, Clock, Edit, Sparkles, CheckCircle2, History, RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
+import { humanizeEvidence } from "@/lib/evidence-format";
+import { EditActionDialog } from "@/components/EditActionDialog";
+import { AuditLogDialog } from "@/components/AuditLogDialog";
 
 type Insight = {
   id: string;
@@ -64,6 +67,9 @@ export default function Agents() {
   const [filterType, setFilterType] = useState<string>("all");
   const [filterSeverity, setFilterSeverity] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("active");
+  const [editing, setEditing] = useState<Insight | null>(null);
+  const [auditFor, setAuditFor] = useState<string | null | undefined>(undefined);
+  const [draftingNarratives, setDraftingNarratives] = useState(false);
 
   async function load() {
     const { data, error } = await supabase
@@ -100,10 +106,36 @@ export default function Agents() {
     }
   }
 
-  async function approve(insight: Insight) {
-    const { error } = await supabase.functions.invoke("agents-act", { body: { insight_id: insight.id } });
+  async function draftMissingNarratives() {
+    const missing = insights.filter((i) => !i.narrative || i.narrative.trim() === "");
+    if (missing.length === 0) { toast.success("All insights already have narratives."); return; }
+    setDraftingNarratives(true);
+    try {
+      const CHUNK = 30;
+      let total = 0;
+      for (let i = 0; i < missing.length; i += CHUNK) {
+        const ids = missing.slice(i, i + CHUNK).map((m) => m.id);
+        toast.message(`Drafting ${i + 1}-${Math.min(i + CHUNK, missing.length)} of ${missing.length}…`);
+        const { data, error } = await supabase.functions.invoke("agents-decide", { body: { ids } });
+        if (error) throw error;
+        total += data?.updated ?? 0;
+      }
+      toast.success(`Drafted ${total} narratives`);
+      await load();
+    } catch (err: any) {
+      toast.error(err.message ?? "Drafting failed");
+    } finally {
+      setDraftingNarratives(false);
+    }
+  }
+
+  async function approve(insight: Insight, edited_action?: any) {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase.functions.invoke("agents-act", {
+      body: { insight_id: insight.id, user_id: user?.id, edited_action },
+    });
     if (error) return toast.error(error.message);
-    toast.success("Action executed");
+    toast.success("Action executed and logged");
     load();
   }
 
@@ -155,6 +187,13 @@ export default function Agents() {
                 <Switch checked={autoRun} onCheckedChange={setAutoRun} />
               </div>
             </div>
+            <Button variant="outline" onClick={() => setAuditFor(null)} className="gap-1">
+              <History className="h-4 w-4" /> Audit log
+            </Button>
+            <Button variant="outline" onClick={draftMissingNarratives} disabled={draftingNarratives} className="gap-1">
+              <RefreshCw className={cn("h-4 w-4", draftingNarratives && "animate-spin")} />
+              {draftingNarratives ? "Drafting…" : "Draft missing narratives"}
+            </Button>
             <Button onClick={runSensePass} disabled={running} size="lg">
               {running ? "Running…" : "Run Sense Pass"}
             </Button>
@@ -170,11 +209,30 @@ export default function Agents() {
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             {filtered.map((ins) => (
-              <InsightCard key={ins.id} insight={ins} onApprove={approve} onStatus={setStatus} />
+              <InsightCard
+                key={ins.id}
+                insight={ins}
+                onApprove={(i) => approve(i)}
+                onEdit={(i) => setEditing(i)}
+                onAudit={(i) => setAuditFor(i.id)}
+                onStatus={setStatus}
+              />
             ))}
           </div>
         )}
       </div>
+
+      <EditActionDialog
+        open={!!editing}
+        onOpenChange={(o) => !o && setEditing(null)}
+        insight={editing as any}
+        onSave={async (edited) => { if (editing) await approve(editing, edited); setEditing(null); }}
+      />
+      <AuditLogDialog
+        open={auditFor !== undefined}
+        onOpenChange={(o) => !o && setAuditFor(undefined)}
+        insightId={auditFor ?? null}
+      />
 
       <aside className="space-y-4">
         <Card className="p-4 space-y-3">
@@ -241,10 +299,12 @@ export default function Agents() {
 }
 
 function InsightCard({
-  insight, onApprove, onStatus,
+  insight, onApprove, onEdit, onAudit, onStatus,
 }: {
   insight: Insight;
   onApprove: (i: Insight) => void;
+  onEdit: (i: Insight) => void;
+  onAudit: (i: Insight) => void;
   onStatus: (id: string, status: Insight["status"]) => void;
 }) {
   const meta = TYPE_META[insight.type];
@@ -318,7 +378,14 @@ function InsightCard({
           <ChevronDown className="h-3 w-3" /> Evidence
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-2">
-          <pre className="text-[11px] bg-muted/40 rounded p-2 overflow-x-auto">{JSON.stringify(ev, null, 2)}</pre>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs bg-muted/40 rounded p-3">
+            {humanizeEvidence(ev).map((row) => (
+              <div key={row.label} className="flex justify-between gap-2 border-b border-border/40 py-1 last:border-0">
+                <dt className="text-muted-foreground">{row.label}</dt>
+                <dd className="font-medium text-right">{row.value}</dd>
+              </div>
+            ))}
+          </dl>
         </CollapsibleContent>
       </Collapsible>
 
@@ -327,7 +394,7 @@ function InsightCard({
           <Button size="sm" onClick={() => onApprove(insight)} className="gap-1">
             <Check className="h-3 w-3" /> Approve
           </Button>
-          <Button size="sm" variant="ghost" className="gap-1" disabled>
+          <Button size="sm" variant="ghost" className="gap-1" onClick={() => onEdit(insight)}>
             <Edit className="h-3 w-3" /> Edit
           </Button>
           <Button size="sm" variant="ghost" className="gap-1" onClick={() => onStatus(insight.id, "rejected")}>
@@ -338,9 +405,12 @@ function InsightCard({
           </Button>
         </div>
       )}
-      {isExecuted && insight.resolved_at && (
-        <div className="text-xs text-muted-foreground pt-2 border-t border-border">
-          Executed {formatDistanceToNow(new Date(insight.resolved_at), { addSuffix: true })}
+      {isExecuted && (
+        <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border">
+          <span>{insight.resolved_at && <>Executed {formatDistanceToNow(new Date(insight.resolved_at), { addSuffix: true })}</>}</span>
+          <Button size="sm" variant="ghost" className="gap-1 h-7" onClick={() => onAudit(insight)}>
+            <History className="h-3 w-3" /> View action
+          </Button>
         </div>
       )}
     </Card>

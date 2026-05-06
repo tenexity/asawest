@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      action_audit_log: {
+        Row: {
+          action_payload: Json
+          action_summary: string | null
+          action_type: string
+          created_at: string
+          error_message: string | null
+          financial_impact_usd: number
+          id: string
+          insight_id: string
+          insight_title: string
+          insight_type: string
+          result_json: Json
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          action_payload?: Json
+          action_summary?: string | null
+          action_type: string
+          created_at?: string
+          error_message?: string | null
+          financial_impact_usd?: number
+          id?: string
+          insight_id: string
+          insight_title: string
+          insight_type: string
+          result_json?: Json
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          action_payload?: Json
+          action_summary?: string | null
+          action_type?: string
+          created_at?: string
+          error_message?: string | null
+          financial_impact_usd?: number
+          id?: string
+          insight_id?: string
+          insight_title?: string
+          insight_type?: string
+          result_json?: Json
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       branches: {
         Row: {
           city: string
