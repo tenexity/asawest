@@ -44,12 +44,30 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    // Helper: page through tables to bypass the 1000-row default limit
+    async function fetchAll<T = any>(table: string, columns: string, filter?: (q: any) => any): Promise<T[]> {
+      const pageSize = 1000;
+      let from = 0;
+      const out: T[] = [];
+      while (true) {
+        let q: any = supabase.from(table).select(columns).range(from, from + pageSize - 1);
+        if (filter) q = filter(q);
+        const { data, error } = await q;
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        out.push(...(data as T[]));
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+      return out;
+    }
+
     // Load supplier info
     const { data: supplier } = await supabase.from("suppliers").select("*").eq("id", supplier_id).single();
     if (!supplier) throw new Error("Supplier not found");
 
     // Products from this supplier
-    const { data: sp } = await supabase.from("supplier_products").select("product_id").eq("supplier_id", supplier_id);
+    const sp = await fetchAll<any>("supplier_products", "product_id", (q) => q.eq("supplier_id", supplier_id));
     const productIds = (sp ?? []).map((r: any) => r.product_id);
     if (productIds.length === 0) {
       return new Response(JSON.stringify({ at_risk: [], summary: emptySummary(supplier.name, delay_days) }), {
