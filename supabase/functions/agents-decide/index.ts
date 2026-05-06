@@ -49,20 +49,34 @@ Deno.serve(async (req) => {
     const sb = createClient(SUPABASE_URL, SERVICE_KEY);
     let insights: any[] = [];
     if (ids?.length) {
-      const { data, error } = await sb.from("insights").select("id, type, evidence_json, recommended_action_json").in("id", ids);
+      const { data, error } = await sb.from("insights").select("id, type, evidence_json, recommended_action_json").in("id", ids).limit(20);
       if (error) throw error;
       insights = data ?? [];
     } else {
-      const { data, error } = await sb.from("insights").select("id, type, evidence_json, recommended_action_json").eq("status", "new").or("narrative.is.null,narrative.eq.").limit(50);
+      const { data, error } = await sb.from("insights").select("id, type, evidence_json, recommended_action_json").eq("status", "new").or("narrative.is.null,narrative.eq.").limit(20);
       if (error) throw error;
       insights = data ?? [];
     }
+
+    // Process in parallel batches to stay under the 150s edge function timeout.
+    const BATCH_SIZE = 5;
     let updated = 0;
-    for (const ins of insights ?? []) {
-      const { narrative, action } = await callClaude(ins.evidence_json, ins.type);
-      const newAction = { ...(ins.recommended_action_json ?? {}), summary: action };
-      await sb.from("insights").update({ narrative, recommended_action_json: newAction }).eq("id", ins.id);
-      updated++;
+    for (let i = 0; i < insights.length; i += BATCH_SIZE) {
+      const batch = insights.slice(i, i + BATCH_SIZE);
+      const results = await Promise.all(
+        batch.map(async (ins) => {
+          try {
+            const { narrative, action } = await callClaude(ins.evidence_json, ins.type);
+            const newAction = { ...(ins.recommended_action_json ?? {}), summary: action };
+            await sb.from("insights").update({ narrative, recommended_action_json: newAction }).eq("id", ins.id);
+            return true;
+          } catch (e) {
+            console.error("decide item failed", ins.id, e);
+            return false;
+          }
+        })
+      );
+      updated += results.filter(Boolean).length;
     }
     return new Response(JSON.stringify({ updated }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err: any) {
