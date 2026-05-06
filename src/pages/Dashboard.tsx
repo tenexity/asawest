@@ -286,11 +286,23 @@ export default function Dashboard() {
     x: d,
     y: totalActivePairs - (pairsSoldPerDay.get(d)?.size ?? 0),
   }));
-  // Daily fill-rate proxy: % of active pairs that moved at least one unit.
-  const fillSpark = days30.map((d) => ({
-    x: d,
-    y: ((pairsSoldPerDay.get(d)?.size ?? 0) / totalActivePairs) * 100,
-  }));
+  // Daily fill-rate proxy: % of active pairs NOT stocked out (sold OR has on_hand>0).
+  // Aligns with branch-comparison definition (100 - stockouts/totalPairs).
+  // Approximation: pairs that did not sell that day AND are currently at on_hand=0
+  // are counted as stockouts on that day.
+  const stockoutPairKeys = new Set(
+    stockoutPairs.map((r) => `${r.branch_id}|${r.product_id}`),
+  );
+  const fillSpark = days30.map((d) => {
+    const sold = pairsSoldPerDay.get(d)?.size ?? 0;
+    // pairs currently at zero that also did not sell that day = stockouts today
+    let stockedOutToday = 0;
+    for (const k of stockoutPairKeys) {
+      if (!pairsSoldPerDay.get(d)?.has(k)) stockedOutToday++;
+    }
+    const pct = ((totalActivePairs - stockedOutToday) / totalActivePairs) * 100;
+    return { x: d, y: Math.max(0, Math.min(100, pct)) };
+  });
   // Daily inventory-value proxy: today's value minus cumulative COGS already shipped.
   let cum = 0;
   const valueSpark = days30.map((d) => {
@@ -300,7 +312,6 @@ export default function Dashboard() {
 
   // ---------- Period-over-period deltas ----------
   const avg = (arr: { y: number }[]) => (arr.length ? arr.reduce((a, b) => a + b.y, 0) / arr.length : 0);
-  // Build prev-30 series the same way (lighter — only need averages)
   const prevDemand = sales60to30.reduce((a, s) => a + s.quantity, 0);
   const prevCogs = sales60to30.reduce(
     (a, s) => a + s.quantity * (costByProduct.get(s.product_id) ?? 0),
@@ -309,8 +320,7 @@ export default function Dashboard() {
   const demandDelta = prevDemand ? ((demand30 - prevDemand) / prevDemand) * 100 : 0;
   const cogsTotal30 = cogsSpark.reduce((a, b) => a + b.y, 0);
   const cogsDelta = prevCogs ? ((cogsTotal30 - prevCogs) / prevCogs) * 100 : 0;
-  const pairsSoldRecent = avg(fillSpark);
-  // Use first vs second half of the 30-day window for fill / stockout deltas
+  // First vs second half of 30-day window for fill / stockout deltas
   const half = Math.floor(days30.length / 2);
   const firstHalf = (s: { y: number }[]) => s.slice(0, half);
   const secondHalf = (s: { y: number }[]) => s.slice(half);
@@ -324,7 +334,9 @@ export default function Dashboard() {
     const b = avg(secondHalf(stockoutTrend));
     return a ? ((b - a) / a) * 100 : 0;
   })();
-  const fillRateLive = pairsSoldRecent > 0 ? pairsSoldRecent : fillRate;
+  // Use the same definition as branch table for the headline KPI
+  const fillRateLive = fillRate;
+
 
 
   // Top 10 problem SKUs by severity = (reorder_point - on_hand) / max(reorder_point,1)
