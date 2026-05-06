@@ -170,7 +170,7 @@ export default function NetworkGraph() {
     for (const { k, sid, cat, w } of supplierCatEntries) {
       if (!passCat(cat)) continue;
       if (!allowedSC.has(k)) continue;
-      if (criticalOnly && w < criticalThreshold) continue;
+      if (criticalOnly && w < scThreshold) continue;
       usedSuppliers.add(sid);
       usedCategories.add(cat);
       edges.push({
