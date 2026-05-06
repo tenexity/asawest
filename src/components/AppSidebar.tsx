@@ -46,7 +46,7 @@ export function AppSidebar() {
             <Droplets className="h-4 w-4" />
           </div>
           {!collapsed && (
-            <div className="font-semibold tracking-tight">FlowOps</div>
+            <div className="font-semibold tracking-tight">Inventory Forecaster</div>
           )}
         </div>
       </SidebarHeader>
