@@ -339,24 +339,46 @@ export default function Dashboard() {
 
 
 
-  // Top 10 problem SKUs by severity = (reorder_point - on_hand) / max(reorder_point,1)
-  const problems = inventory
-    .map((r) => ({
-      sku: r.products?.sku ?? "—",
-      desc: r.products?.description ?? "",
-      severity:
-        r.reorder_point > 0
-          ? Math.max(0, (r.reorder_point - r.on_hand) / r.reorder_point)
-          : r.on_hand === 0
-          ? 1
-          : 0,
-      on_hand: r.on_hand,
-      rp: r.reorder_point,
-    }))
-    .filter((r) => r.severity > 0)
+  // Top 10 problem SKUs — classify the *reason* and quantify impact
+  type Problem = {
+    sku: string;
+    desc: string;
+    reason: "Stockout" | "Below ROP" | "Excess";
+    on_hand: number;
+    rp: number;
+    dos: number;
+    impact: number; // $ at risk (lost sales) or $ tied up (excess)
+    severity: number; // 0..1 sort key
+  };
+  const problems: Problem[] = inventory
+    .map((r): Problem | null => {
+      const k = `${r.branch_id}|${r.product_id}`;
+      const daily = (dailyDemandByPair.get(k) ?? 0) / 30;
+      const cost = r.products?.unit_cost ?? 0;
+      const dos = daily > 0 ? r.on_hand / daily : r.on_hand > 0 ? 999 : 0;
+      const sku = r.products?.sku ?? "—";
+      const desc = r.products?.description ?? "";
+      if (r.on_hand === 0 && daily > 0) {
+        // 14-day lost-sales estimate
+        const impact = daily * 14 * cost;
+        return { sku, desc, reason: "Stockout", on_hand: 0, rp: r.reorder_point, dos: 0, impact, severity: 1 + impact / 1e6 };
+      }
+      if (r.reorder_point > 0 && r.on_hand < r.reorder_point && daily > 0) {
+        const gap = r.reorder_point - r.on_hand;
+        const impact = gap * cost;
+        const sev = 0.5 + (gap / r.reorder_point) * 0.49;
+        return { sku, desc, reason: "Below ROP", on_hand: r.on_hand, rp: r.reorder_point, dos, impact, severity: sev };
+      }
+      if (dos > 180 && r.on_hand > 0) {
+        const impact = r.on_hand * cost;
+        return { sku, desc, reason: "Excess", on_hand: r.on_hand, rp: r.reorder_point, dos, impact, severity: 0.3 + Math.min(0.2, impact / 1e6) };
+      }
+      return null;
+    })
+    .filter((p): p is Problem => p !== null)
     .sort((a, b) => b.severity - a.severity)
-    .slice(0, 10)
-    .map((r) => ({ name: r.sku, value: Math.round(r.severity * 100) }));
+    .slice(0, 10);
+
 
   // Branch comparison
   const branchRows = (branchId === "all" ? branches : branches.filter((b) => b.id === branchId))
