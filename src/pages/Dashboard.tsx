@@ -230,17 +230,9 @@ export default function Dashboard() {
   }
   const avgDos = dosCount ? dosSum / dosCount : 0;
 
-  // Inventory turns: annualized COGS / avg inventory value (last 90 days)
-  const cogs90 = sales.reduce(
-    (a, s) =>
-      a +
-      s.quantity *
-        (inventory.find(
-          (i) => i.product_id === s.product_id && i.branch_id === s.branch_id,
-        )?.products?.unit_cost ?? 0),
-    0,
-  );
-  const turns = totalValue > 0 ? (cogs90 * 4) / totalValue : 0;
+  // Inventory turns: annualized COGS / avg inventory value.
+  // Use the precomputed costByProduct map (built below) — defer calc until after it.
+
 
   // ---------- Daily time-series from sales_history ----------
   // Build a 30-day window of: total demand, COGS, and distinct (product,branch)
@@ -262,6 +254,13 @@ export default function Dashboard() {
   for (const r of inventory) {
     if (r.products?.unit_cost != null) costByProduct.set(r.product_id, r.products.unit_cost);
   }
+  // Inventory turns: annualized COGS / inventory value, using 90-day window.
+  const cogs90Total = sales.reduce(
+    (a, s) => a + s.quantity * (costByProduct.get(s.product_id) ?? 0),
+    0,
+  );
+  const turns = totalValue > 0 ? (cogs90Total * (365 / 90)) / totalValue : 0;
+
   // Universe of pairs that have sold at least once in the last 90 days (= "active")
   const activePairs = new Set<string>();
   for (const s of sales) activePairs.add(`${s.branch_id}|${s.product_id}`);
@@ -287,11 +286,23 @@ export default function Dashboard() {
     x: d,
     y: totalActivePairs - (pairsSoldPerDay.get(d)?.size ?? 0),
   }));
-  // Daily fill-rate proxy: % of active pairs that moved at least one unit.
-  const fillSpark = days30.map((d) => ({
-    x: d,
-    y: ((pairsSoldPerDay.get(d)?.size ?? 0) / totalActivePairs) * 100,
-  }));
+  // Daily fill-rate proxy: % of active pairs NOT stocked out (sold OR has on_hand>0).
+  // Aligns with branch-comparison definition (100 - stockouts/totalPairs).
+  // Approximation: pairs that did not sell that day AND are currently at on_hand=0
+  // are counted as stockouts on that day.
+  const stockoutPairKeys = new Set(
+    stockoutPairs.map((r) => `${r.branch_id}|${r.product_id}`),
+  );
+  const fillSpark = days30.map((d) => {
+    const sold = pairsSoldPerDay.get(d)?.size ?? 0;
+    // pairs currently at zero that also did not sell that day = stockouts today
+    let stockedOutToday = 0;
+    for (const k of stockoutPairKeys) {
+      if (!pairsSoldPerDay.get(d)?.has(k)) stockedOutToday++;
+    }
+    const pct = ((totalActivePairs - stockedOutToday) / totalActivePairs) * 100;
+    return { x: d, y: Math.max(0, Math.min(100, pct)) };
+  });
   // Daily inventory-value proxy: today's value minus cumulative COGS already shipped.
   let cum = 0;
   const valueSpark = days30.map((d) => {
@@ -301,7 +312,6 @@ export default function Dashboard() {
 
   // ---------- Period-over-period deltas ----------
   const avg = (arr: { y: number }[]) => (arr.length ? arr.reduce((a, b) => a + b.y, 0) / arr.length : 0);
-  // Build prev-30 series the same way (lighter — only need averages)
   const prevDemand = sales60to30.reduce((a, s) => a + s.quantity, 0);
   const prevCogs = sales60to30.reduce(
     (a, s) => a + s.quantity * (costByProduct.get(s.product_id) ?? 0),
@@ -310,8 +320,7 @@ export default function Dashboard() {
   const demandDelta = prevDemand ? ((demand30 - prevDemand) / prevDemand) * 100 : 0;
   const cogsTotal30 = cogsSpark.reduce((a, b) => a + b.y, 0);
   const cogsDelta = prevCogs ? ((cogsTotal30 - prevCogs) / prevCogs) * 100 : 0;
-  const pairsSoldRecent = avg(fillSpark);
-  // Use first vs second half of the 30-day window for fill / stockout deltas
+  // First vs second half of 30-day window for fill / stockout deltas
   const half = Math.floor(days30.length / 2);
   const firstHalf = (s: { y: number }[]) => s.slice(0, half);
   const secondHalf = (s: { y: number }[]) => s.slice(half);
@@ -325,27 +334,51 @@ export default function Dashboard() {
     const b = avg(secondHalf(stockoutTrend));
     return a ? ((b - a) / a) * 100 : 0;
   })();
-  const fillRateLive = pairsSoldRecent > 0 ? pairsSoldRecent : fillRate;
+  // Use the same definition as branch table for the headline KPI
+  const fillRateLive = fillRate;
 
 
-  // Top 10 problem SKUs by severity = (reorder_point - on_hand) / max(reorder_point,1)
-  const problems = inventory
-    .map((r) => ({
-      sku: r.products?.sku ?? "—",
-      desc: r.products?.description ?? "",
-      severity:
-        r.reorder_point > 0
-          ? Math.max(0, (r.reorder_point - r.on_hand) / r.reorder_point)
-          : r.on_hand === 0
-          ? 1
-          : 0,
-      on_hand: r.on_hand,
-      rp: r.reorder_point,
-    }))
-    .filter((r) => r.severity > 0)
+
+  // Top 10 problem SKUs — classify the *reason* and quantify impact
+  type Problem = {
+    sku: string;
+    desc: string;
+    reason: "Stockout" | "Below ROP" | "Excess";
+    on_hand: number;
+    rp: number;
+    dos: number;
+    impact: number; // $ at risk (lost sales) or $ tied up (excess)
+    severity: number; // 0..1 sort key
+  };
+  const problems: Problem[] = inventory
+    .map((r): Problem | null => {
+      const k = `${r.branch_id}|${r.product_id}`;
+      const daily = (dailyDemandByPair.get(k) ?? 0) / 30;
+      const cost = r.products?.unit_cost ?? 0;
+      const dos = daily > 0 ? r.on_hand / daily : r.on_hand > 0 ? 999 : 0;
+      const sku = r.products?.sku ?? "—";
+      const desc = r.products?.description ?? "";
+      if (r.on_hand === 0 && daily > 0) {
+        // 14-day lost-sales estimate
+        const impact = daily * 14 * cost;
+        return { sku, desc, reason: "Stockout", on_hand: 0, rp: r.reorder_point, dos: 0, impact, severity: 1 + impact / 1e6 };
+      }
+      if (r.reorder_point > 0 && r.on_hand < r.reorder_point && daily > 0) {
+        const gap = r.reorder_point - r.on_hand;
+        const impact = gap * cost;
+        const sev = 0.5 + (gap / r.reorder_point) * 0.49;
+        return { sku, desc, reason: "Below ROP", on_hand: r.on_hand, rp: r.reorder_point, dos, impact, severity: sev };
+      }
+      if (dos > 180 && r.on_hand > 0) {
+        const impact = r.on_hand * cost;
+        return { sku, desc, reason: "Excess", on_hand: r.on_hand, rp: r.reorder_point, dos, impact, severity: 0.3 + Math.min(0.2, impact / 1e6) };
+      }
+      return null;
+    })
+    .filter((p): p is Problem => p !== null)
     .sort((a, b) => b.severity - a.severity)
-    .slice(0, 10)
-    .map((r) => ({ name: r.sku, value: Math.round(r.severity * 100) }));
+    .slice(0, 10);
+
 
   // Branch comparison
   const branchRows = (branchId === "all" ? branches : branches.filter((b) => b.id === branchId))
@@ -518,23 +551,66 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </div>
         </Card>
-        <Card className="p-4">
-          <h2 className="font-semibold mb-3">Top 10 Problem SKUs</h2>
-          <div className="h-64">
+        <Card className="p-0 overflow-hidden">
+          <div className="px-4 py-3 border-b">
+            <h2 className="font-semibold">Top 10 Problem SKUs</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Ranked by reason and financial impact
+            </p>
+          </div>
+          <div className="h-[232px] overflow-auto">
             {problems.length === 0 ? (
               <div className="h-full grid place-items-center text-sm text-muted-foreground">
                 No problem SKUs
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={problems} layout="vertical" margin={{ left: 60 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis type="number" tick={{ fontSize: 10 }} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={80} />
-                  <Tooltip />
-                  <Bar dataKey="value" fill={dangerColor} radius={[0, 3, 3, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>SKU</TableHead>
+                    <TableHead>Reason</TableHead>
+                    <TableHead className="text-right">On Hand</TableHead>
+                    <TableHead className="text-right">ROP</TableHead>
+                    <TableHead className="text-right">DOS</TableHead>
+                    <TableHead className="text-right">Impact</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {problems.map((p) => {
+                    const badge =
+                      p.reason === "Stockout"
+                        ? "bg-danger/15 text-danger"
+                        : p.reason === "Below ROP"
+                        ? "bg-warning/15 text-warning"
+                        : "bg-muted text-muted-foreground";
+                    return (
+                      <TableRow key={`${p.sku}-${p.reason}`}>
+                        <TableCell className="font-mono text-xs">
+                          <div className="font-medium">{p.sku}</div>
+                          <div className="text-[10px] text-muted-foreground truncate max-w-[180px]">
+                            {p.desc}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", badge)}>
+                            {p.reason}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{p.on_hand}</TableCell>
+                        <TableCell className="text-right tabular-nums text-muted-foreground">
+                          {p.rp}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {p.dos >= 999 ? "∞" : p.dos.toFixed(0)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums font-medium">
+                          {fmtCurrency(p.impact)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             )}
           </div>
         </Card>
