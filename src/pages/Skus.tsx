@@ -341,7 +341,22 @@ export default function Skus() {
                   <TableCell className="font-mono text-xs">{r.sku}</TableCell>
                   <TableCell className="max-w-[320px] truncate">{r.description}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{r.category}</TableCell>
-                  <TableCell className="text-xs">{r.abc}/{r.xyz}</TableCell>
+                  <TableCell className="text-xs" onClick={(e) => e.stopPropagation()}>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button type="button" className="underline decoration-dotted underline-offset-2 hover:text-foreground">
+                            {r.abc}/{r.xyz}
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="max-w-xs text-xs">
+                          <div><span className="font-medium">{r.abc}</span> — {ABC_LABEL[r.abc] ?? "value class"}</div>
+                          <div><span className="font-medium">{r.xyz}</span> — {XYZ_LABEL[r.xyz] ?? "demand class"}</div>
+                          <div className="mt-1 text-muted-foreground">{combinedHint(r.abc, r.xyz)}</div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">{r.totalOnHand.toLocaleString()}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {r.daysOfSupply === null ? "—" : Math.round(r.daysOfSupply)}
