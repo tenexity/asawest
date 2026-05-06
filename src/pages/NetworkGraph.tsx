@@ -552,13 +552,145 @@ export default function NetworkGraph() {
 
       {/* Side panel */}
       <Sheet open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
-        <SheetContent>
+        <SheetContent className="overflow-y-auto">
           <SheetHeader>
             <SheetTitle>{selected?.label}</SheetTitle>
           </SheetHeader>
-          <pre className="text-xs mt-4 bg-muted p-3 rounded">
-            {JSON.stringify(selected?.meta, null, 2)}
-          </pre>
+          {selected && graph && (() => {
+            const type = selected.meta?.type as string;
+            const meta = selected.meta?.meta ?? {};
+            const fmt = (n: number) => `$${Math.round(n).toLocaleString()}`;
+
+            const inflows: { label: string; value: number }[] = [];
+            const outflows: { label: string; value: number }[] = [];
+            let total = 0;
+
+            if (type === "supplier") {
+              for (const [k, v] of Object.entries(graph.supplier_category)) {
+                const [sid, cat] = k.split("|");
+                if (sid === meta.id) { outflows.push({ label: cat, value: v }); total += v; }
+              }
+            } else if (type === "category") {
+              for (const [k, v] of Object.entries(graph.supplier_category)) {
+                const [sid, cat] = k.split("|");
+                if (cat === meta.category) {
+                  const name = graph.suppliers.find((s) => s.id === sid)?.name ?? sid;
+                  inflows.push({ label: name, value: v });
+                }
+              }
+              for (const [k, v] of Object.entries(graph.category_branch)) {
+                const [cat, bid] = k.split("|");
+                if (cat === meta.category) {
+                  const name = graph.branches.find((b) => b.id === bid)?.name ?? bid;
+                  outflows.push({ label: name, value: v }); total += v;
+                }
+              }
+            } else if (type === "branch") {
+              for (const [k, v] of Object.entries(graph.category_branch)) {
+                const [cat, bid] = k.split("|");
+                if (bid === meta.id) inflows.push({ label: cat, value: v });
+              }
+              for (const [k, v] of Object.entries(graph.branch_customer)) {
+                const [bid, ct] = k.split("|");
+                if (bid === meta.id) { outflows.push({ label: ct, value: v }); total += v; }
+              }
+            } else if (type === "customer") {
+              for (const [k, v] of Object.entries(graph.branch_customer)) {
+                const [bid, ct] = k.split("|");
+                if (ct === meta.customer_type) {
+                  const name = graph.branches.find((b) => b.id === bid)?.name ?? bid;
+                  inflows.push({ label: name, value: v }); total += v;
+                }
+              }
+            }
+
+            inflows.sort((a, b) => b.value - a.value);
+            outflows.sort((a, b) => b.value - a.value);
+
+            const typeLabel = {
+              supplier: "Supplier",
+              category: "Product category",
+              branch: "Branch",
+              customer: "Customer type",
+            }[type] ?? type;
+
+            const inboundLabel = {
+              supplier: null,
+              category: "Supplied by",
+              branch: "Stocked from categories",
+              customer: "Served by branches",
+            }[type];
+            const outboundLabel = {
+              supplier: "Supplies categories",
+              category: "Distributed to branches",
+              branch: "Sells to customer types",
+              customer: null,
+            }[type];
+
+            return (
+              <div className="mt-4 space-y-5 text-sm">
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">{typeLabel}</Badge>
+                  {total > 0 && (
+                    <span className="text-muted-foreground text-xs">
+                      ~{fmt(total)} flowing through (90d)
+                    </span>
+                  )}
+                </div>
+
+                {inboundLabel && (
+                  <div>
+                    <div className="font-medium mb-2">{inboundLabel}</div>
+                    {inflows.length === 0 ? (
+                      <div className="text-xs text-muted-foreground">No upstream connections.</div>
+                    ) : (
+                      <ul className="space-y-1">
+                        {inflows.slice(0, 10).map((r) => (
+                          <li key={r.label} className="flex justify-between gap-3 border-b py-1">
+                            <span className="truncate">{r.label}</span>
+                            <span className="text-muted-foreground tabular-nums">{fmt(r.value)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
+                {outboundLabel && (
+                  <div>
+                    <div className="font-medium mb-2">{outboundLabel}</div>
+                    {outflows.length === 0 ? (
+                      <div className="text-xs text-muted-foreground">No downstream connections.</div>
+                    ) : (
+                      <ul className="space-y-1">
+                        {outflows.slice(0, 10).map((r) => (
+                          <li key={r.label} className="flex justify-between gap-3 border-b py-1">
+                            <span className="truncate">{r.label}</span>
+                            <span className="text-muted-foreground tabular-nums">{fmt(r.value)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
+                {type === "supplier" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => {
+                      setSupplierId(meta.id);
+                      setSelected(null);
+                      setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+                    }}
+                  >
+                    <Play className="h-3 w-3 mr-2" /> Simulate disruption for this supplier
+                  </Button>
+                )}
+              </div>
+            );
+          })()}
         </SheetContent>
       </Sheet>
     </div>
