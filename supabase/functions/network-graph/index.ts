@@ -13,28 +13,37 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
-    const [{ data: suppliers }, { data: branches }, { data: products }, { data: sp }, { data: inv }] =
-      await Promise.all([
-        supabase.from("suppliers").select("id, name"),
-        supabase.from("branches").select("id, name"),
-        supabase.from("products").select("id, category, unit_cost, unit_price"),
-        supabase.from("supplier_products").select("supplier_id, product_id, cost"),
-        supabase.from("inventory_levels").select("product_id, branch_id, on_hand"),
-      ]);
+    // Helper: page through tables to bypass the 1000-row default limit
+    async function fetchAll<T = any>(table: string, columns: string, filter?: (q: any) => any): Promise<T[]> {
+      const pageSize = 1000;
+      let from = 0;
+      const out: T[] = [];
+      while (true) {
+        let q: any = supabase.from(table).select(columns).range(from, from + pageSize - 1);
+        if (filter) q = filter(q);
+        const { data, error } = await q;
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        out.push(...(data as T[]));
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+      return out;
+    }
 
-    // 90-day PO spend per supplier-category
     const since = new Date();
     since.setDate(since.getDate() - 90);
-    const { data: pos } = await supabase
-      .from("purchase_orders")
-      .select("supplier_id, ordered_date")
-      .gte("ordered_date", since.toISOString().slice(0, 10));
+    const sinceStr = since.toISOString().slice(0, 10);
 
-    // Sales last 90 days per branch x customer_type
-    const { data: sales } = await supabase
-      .from("sales_history")
-      .select("branch_id, customer_type, quantity, product_id, sale_date")
-      .gte("sale_date", since.toISOString().slice(0, 10));
+    const [suppliers, branches, products, sp, inv, pos, sales] = await Promise.all([
+      fetchAll<any>("suppliers", "id, name"),
+      fetchAll<any>("branches", "id, name"),
+      fetchAll<any>("products", "id, category, unit_cost, unit_price"),
+      fetchAll<any>("supplier_products", "supplier_id, product_id, cost"),
+      fetchAll<any>("inventory_levels", "product_id, branch_id, on_hand"),
+      fetchAll<any>("purchase_orders", "supplier_id, ordered_date", (q) => q.gte("ordered_date", sinceStr)),
+      fetchAll<any>("sales_history", "branch_id, customer_type, quantity, product_id, sale_date", (q) => q.gte("sale_date", sinceStr)),
+    ]);
 
     const prodMap = new Map((products ?? []).map((p: any) => [p.id, p]));
     const spByPair = new Map<string, number>(); // supplier|category -> spend approx
