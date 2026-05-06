@@ -412,10 +412,12 @@ async function runCore(supabase: any, startedAt: number) {
 }
 
 async function runSales(supabase: any, offset: number, limit: number, startedAt: number) {
-  // Fetch product slice (ordered by sku for deterministic pagination)
+  // Fetch product slice ordered by id (uuid) so the slice spans all categories
+  // instead of the alphabetical bias of SKU-prefixed pagination (which trapped
+  // the first ~200 rows entirely in the `fittings` category).
   const { data: products } = await supabase.from("products")
     .select("id, abc_class, seasonality_pattern, is_intermittent")
-    .order("sku")
+    .order("id")
     .range(offset, offset + limit - 1)
     .throwOnError();
   const { data: branches } = await supabase.from("branches").select("id, climate_zone").throwOnError();
