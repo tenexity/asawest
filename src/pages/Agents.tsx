@@ -214,7 +214,7 @@ export default function Agents() {
               <InsightCard
                 key={ins.id}
                 insight={ins}
-                onApprove={(i) => approve(i)}
+                onApprove={(i) => setConfirming(i)}
                 onEdit={(i) => setEditing(i)}
                 onAudit={(i) => setAuditFor(i.id)}
                 onStatus={setStatus}
