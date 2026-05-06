@@ -14,6 +14,7 @@ import NetworkGraph from "./pages/NetworkGraph";
 import Agents from "./pages/Agents";
 import Chat from "./pages/Chat";
 import Auth from "./pages/Auth";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -38,7 +39,7 @@ const App = () => (
               <Route path="/ask" element={<Chat />} />
               <Route path="/chat" element={<Chat />} />
               <Route path="/connect" element={<ConnectData />} />
-              <Route path="/settings" element={<Placeholder title="Settings" />} />
+              <Route path="/settings" element={<Settings />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

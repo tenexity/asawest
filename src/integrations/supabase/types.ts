@@ -544,6 +544,30 @@ export type Database = {
           },
         ]
       }
+      saved_scenarios: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          snapshot_json: Json
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          snapshot_json: Json
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          snapshot_json?: Json
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       saved_simulations: {
         Row: {
           created_at: string
@@ -676,6 +700,27 @@ export type Database = {
           quantity?: number
           source_branch_id?: string
           status?: Database["public"]["Enums"]["transfer_status"]
+        }
+        Relationships: []
+      }
+      user_settings: {
+        Row: {
+          demo_mode: boolean
+          last_reset_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          demo_mode?: boolean
+          last_reset_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          demo_mode?: boolean
+          last_reset_at?: string | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
