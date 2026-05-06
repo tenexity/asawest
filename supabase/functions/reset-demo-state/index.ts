@@ -5,6 +5,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Tables wiped on every reset.
+// Note: `promoted_substitutes` and `action_audit_log` are intentionally preserved
+// so that prior approvals (and their audit trail) survive a demo reset. The Sense
+// pass already skips substitution opportunities for SKUs that have a promoted
+// substitute on file, so kept approvals will not re-appear as recommendations.
 const DYNAMIC_TABLES = [
   "sales_history",
   "inventory_levels",
@@ -14,7 +19,6 @@ const DYNAMIC_TABLES = [
   "transfer_orders",
   "reorder_recommendations",
   "markdown_candidates",
-  "promoted_substitutes",
   "saved_simulations",
   "chat_messages",
   "conversations",
