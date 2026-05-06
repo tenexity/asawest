@@ -20,6 +20,7 @@ import { useBranch } from "@/contexts/BranchContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { LogOut, User } from "lucide-react";
+import { HowToButton } from "@/components/HowToButton";
 
 type Branch = { id: string; name: string; city: string; state: string };
 
@@ -40,6 +41,7 @@ export function TopBar() {
     <header className="h-14 border-b bg-background flex items-center gap-3 px-3 sticky top-0 z-30">
       <SidebarTrigger />
       <div className="ml-auto flex items-center gap-2">
+        <HowToButton />
         <Select value={branchId} onValueChange={(v) => setBranchId(v as string)}>
           <SelectTrigger className="w-[220px] h-9">
             <SelectValue placeholder="All Branches" />
