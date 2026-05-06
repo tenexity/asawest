@@ -59,22 +59,24 @@ type Row = {
 
 const STATUSES: Status[] = ["Healthy", "Watch", "At Risk", "Stockout", "Excess"];
 
+const ABC_TIER: Record<string, string> = { A: "High", B: "Mid", C: "Low" };
+const XYZ_TIER: Record<string, string> = { X: "Steady", Y: "Variable", Z: "Lumpy" };
 const ABC_LABEL: Record<string, string> = {
-  A: "high value (top ~20% of revenue, 98% target service level)",
-  B: "mid value (next ~30% of revenue, 95% target service level)",
-  C: "low value / long tail (90% target service level)",
+  A: "top ~20% of revenue (98% target service level)",
+  B: "next ~30% of revenue (95% target service level)",
+  C: "long tail (90% target service level)",
 };
 const XYZ_LABEL: Record<string, string> = {
-  X: "steady, predictable demand",
-  Y: "variable or seasonal demand",
-  Z: "lumpy / intermittent demand — hard to forecast",
+  X: "predictable, easy to forecast",
+  Y: "variable or seasonal",
+  Z: "lumpy / intermittent — hard to forecast",
 };
 function combinedHint(abc: string, xyz: string): string {
   if (abc === "A" && xyz === "X") return "Tight stock, frequent reorders — keep this one humming.";
   if (abc === "A" && xyz === "Z") return "Important but unpredictable — needs extra safety stock.";
   if (abc === "C" && xyz === "Z") return "Low value and lumpy — consider order-on-demand or substitution.";
   if (abc === "B" && xyz === "Y") return "Mid-tier seasonal — watch peak windows closely.";
-  return "Stocking strategy is set from this combination.";
+  return "Used to set service level and forecasting strategy automatically.";
 }
 
 async function fetchAll<T>(
@@ -311,42 +313,26 @@ export default function Skus() {
                 {head("SKU", "sku")}
                 {head("Description", "description")}
                 {head("Category", "category")}
-                <TableHead>
-                  <span className="inline-flex items-center gap-1">
-                    ABC/XYZ
+                {head("On-hand", "totalOnHand", "right")}
+                {head("Days of Supply", "daysOfSupply", "right")}
+                {head("Status", "status")}
+                <TableHead className="text-right">
+                  <span className="inline-flex items-center gap-1 text-muted-foreground font-normal">
+                    Classification
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="What is ABC/XYZ?">
+                          <button type="button" className="hover:text-foreground" aria-label="What is classification?">
                             <Info className="h-3 w-3" />
                           </button>
                         </TooltipTrigger>
-                        <TooltipContent side="bottom" className="max-w-xs text-xs">
-                          Two-axis SKU classification used to set service levels and stocking strategy.
-                          <div className="mt-1">
-                            <span className="font-medium">ABC — value / volume:</span>
-                            <ul className="list-disc pl-4 space-y-0.5">
-                              <li><span className="font-medium">A</span>: top ~20% by revenue (tight control, 98% service level)</li>
-                              <li><span className="font-medium">B</span>: next ~30% (95% service level)</li>
-                              <li><span className="font-medium">C</span>: long tail (90% service level)</li>
-                            </ul>
-                          </div>
-                          <div className="mt-1">
-                            <span className="font-medium">XYZ — demand predictability:</span>
-                            <ul className="list-disc pl-4 space-y-0.5">
-                              <li><span className="font-medium">X</span>: steady, easy to forecast</li>
-                              <li><span className="font-medium">Y</span>: variable / seasonal</li>
-                              <li><span className="font-medium">Z</span>: lumpy or intermittent — hardest to forecast</li>
-                            </ul>
-                          </div>
+                        <TooltipContent side="left" className="max-w-xs text-xs">
+                          A two-part tag the system uses behind the scenes to set service levels and forecasting strategy. Read it as <span className="font-medium">value · demand pattern</span> (e.g. "High value · Steady"). You don't need to act on it directly — it shapes the recommendations on the Reorder page.
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   </span>
                 </TableHead>
-                {head("On-hand", "totalOnHand", "right")}
-                {head("Days of Supply", "daysOfSupply", "right")}
-                {head("Status", "status")}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -359,22 +345,6 @@ export default function Skus() {
                   <TableCell className="font-mono text-xs">{r.sku}</TableCell>
                   <TableCell className="max-w-[320px] truncate">{r.description}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{r.category}</TableCell>
-                  <TableCell className="text-xs" onClick={(e) => e.stopPropagation()}>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button type="button" className="underline decoration-dotted underline-offset-2 hover:text-foreground">
-                            {r.abc}/{r.xyz}
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="right" className="max-w-xs text-xs">
-                          <div><span className="font-medium">{r.abc}</span> — {ABC_LABEL[r.abc] ?? "value class"}</div>
-                          <div><span className="font-medium">{r.xyz}</span> — {XYZ_LABEL[r.xyz] ?? "demand class"}</div>
-                          <div className="mt-1 text-muted-foreground">{combinedHint(r.abc, r.xyz)}</div>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </TableCell>
                   <TableCell className="text-right tabular-nums">{r.totalOnHand.toLocaleString()}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {r.daysOfSupply === null ? "—" : Math.round(r.daysOfSupply)}
@@ -383,6 +353,22 @@ export default function Skus() {
                     <Badge variant="outline" className={cn("text-xs", statusToken[r.status])}>
                       {r.status}
                     </Badge>
+                  </TableCell>
+                  <TableCell className="text-right text-xs text-muted-foreground" onClick={(e) => e.stopPropagation()}>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button type="button" className="hover:text-foreground">
+                            {ABC_TIER[r.abc] ?? r.abc} · {XYZ_TIER[r.xyz] ?? r.xyz}
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="left" className="max-w-xs text-xs">
+                          <div><span className="font-medium">{ABC_TIER[r.abc] ?? r.abc} value</span> — {ABC_LABEL[r.abc]}</div>
+                          <div><span className="font-medium">{XYZ_TIER[r.xyz] ?? r.xyz} demand</span> — {XYZ_LABEL[r.xyz]}</div>
+                          <div className="mt-1 text-muted-foreground">{combinedHint(r.abc, r.xyz)}</div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </TableCell>
                 </TableRow>
               ))}
