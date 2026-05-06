@@ -48,14 +48,14 @@ export default function Chat() {
     setMessages((data ?? []).map((m: any) => ({ ...m, tool_calls: m.tool_calls ?? [] })) as Msg[]);
   }
 
-  async function newConversation() {
+  async function newConversation(): Promise<string | undefined> {
     if (!user) return;
     const { data, error } = await supabase.from("conversations").insert({ user_id: user.id, title: "New conversation" }).select().single();
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     setConvId(data.id);
     setMessages([]);
     loadConversations();
-    return data.id;
+    return data.id as string;
   }
 
   async function deleteConversation(id: string) {
