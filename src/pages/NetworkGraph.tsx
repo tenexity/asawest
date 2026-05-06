@@ -105,8 +105,8 @@ export default function NetworkGraph() {
     if (top) setSupplierId(top[0]);
   }, [graph, supplierId]);
 
-  const { nodes, edges } = useMemo(() => {
-    if (!graph) return { nodes: [], edges: [] };
+  const { nodes: computedNodes, edges: computedEdges } = useMemo(() => {
+    if (!graph) return { nodes: [] as Node[], edges: [] as Edge[] };
     const nodes: Node[] = [];
     const edges: Edge[] = [];
 
@@ -251,6 +251,17 @@ export default function NetworkGraph() {
 
     return { nodes, edges };
   }, [graph, filterBranch, filterCategory, criticalOnly]);
+
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+
+  useEffect(() => {
+    setNodes(computedNodes);
+  }, [computedNodes, setNodes]);
+
+  useEffect(() => {
+    setEdges(computedEdges);
+  }, [computedEdges, setEdges]);
 
   const runSimulation = async () => {
     if (!supplierId) return;
