@@ -114,17 +114,37 @@ export default function NetworkGraph() {
     const passBranch = (b: string) => filterBranch === "all" || b === filterBranch;
     const passCat = (c: string) => filterCategory === "all" || c === filterCategory;
 
-    // Per-tier "critical" thresholds. The three edge types are on very different
-    // dollar scales (PO spend vs. inventory value vs. sales revenue), so a single
-    // global threshold wipes out two of the three tiers. Compute top-20% per tier.
+    // Per-tier "critical" thresholds, computed within the *currently visible* subset
+    // (after branch/category filters). The three edge types are on very different
+    // dollar scales, and a global threshold also wipes out most edges as soon as
+    // the user narrows to a single category.
     const topPct = (vals: number[], pct = 0.2) => {
       if (!vals.length) return 0;
       const sorted = [...vals].sort((a, b) => b - a);
-      return sorted[Math.floor(sorted.length * pct)] ?? 0;
+      return sorted[Math.max(0, Math.floor(sorted.length * pct) - 1)] ?? 0;
     };
-    const scThreshold = topPct(Object.values(graph.supplier_category));
-    const cbThreshold = topPct(Object.values(graph.category_branch));
-    const bcThreshold = topPct(Object.values(graph.branch_customer));
+    const visibleSC = Object.entries(graph.supplier_category)
+      .filter(([k]) => {
+        const [, cat] = k.split("|");
+        return filterCategory === "all" || cat === filterCategory;
+      })
+      .map(([, w]) => w);
+    const visibleCB = Object.entries(graph.category_branch)
+      .filter(([k]) => {
+        const [cat, bid] = k.split("|");
+        return (filterCategory === "all" || cat === filterCategory) &&
+               (filterBranch === "all" || bid === filterBranch);
+      })
+      .map(([, w]) => w);
+    const visibleBC = Object.entries(graph.branch_customer)
+      .filter(([k]) => {
+        const [bid] = k.split("|");
+        return filterBranch === "all" || bid === filterBranch;
+      })
+      .map(([, w]) => w);
+    const scThreshold = topPct(visibleSC);
+    const cbThreshold = topPct(visibleCB);
+    const bcThreshold = topPct(visibleBC);
 
     const colSupplier = 0;
     const colCategory = 380;
