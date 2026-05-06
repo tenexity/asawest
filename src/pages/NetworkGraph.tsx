@@ -114,13 +114,17 @@ export default function NetworkGraph() {
     const passBranch = (b: string) => filterBranch === "all" || b === filterBranch;
     const passCat = (c: string) => filterCategory === "all" || c === filterCategory;
 
-    // Compute weight thresholds for "critical only"
-    const allWeights = [
-      ...Object.values(graph.supplier_category),
-      ...Object.values(graph.category_branch),
-      ...Object.values(graph.branch_customer),
-    ].sort((a, b) => b - a);
-    const criticalThreshold = allWeights[Math.floor(allWeights.length * 0.2)] ?? 0;
+    // Per-tier "critical" thresholds. The three edge types are on very different
+    // dollar scales (PO spend vs. inventory value vs. sales revenue), so a single
+    // global threshold wipes out two of the three tiers. Compute top-20% per tier.
+    const topPct = (vals: number[], pct = 0.2) => {
+      if (!vals.length) return 0;
+      const sorted = [...vals].sort((a, b) => b - a);
+      return sorted[Math.floor(sorted.length * pct)] ?? 0;
+    };
+    const scThreshold = topPct(Object.values(graph.supplier_category));
+    const cbThreshold = topPct(Object.values(graph.category_branch));
+    const bcThreshold = topPct(Object.values(graph.branch_customer));
 
     const colSupplier = 0;
     const colCategory = 380;
