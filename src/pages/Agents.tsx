@@ -209,11 +209,30 @@ export default function Agents() {
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             {filtered.map((ins) => (
-              <InsightCard key={ins.id} insight={ins} onApprove={approve} onStatus={setStatus} />
+              <InsightCard
+                key={ins.id}
+                insight={ins}
+                onApprove={(i) => approve(i)}
+                onEdit={(i) => setEditing(i)}
+                onAudit={(i) => setAuditFor(i.id)}
+                onStatus={setStatus}
+              />
             ))}
           </div>
         )}
       </div>
+
+      <EditActionDialog
+        open={!!editing}
+        onOpenChange={(o) => !o && setEditing(null)}
+        insight={editing as any}
+        onSave={async (edited) => { if (editing) await approve(editing, edited); setEditing(null); }}
+      />
+      <AuditLogDialog
+        open={auditFor !== undefined}
+        onOpenChange={(o) => !o && setAuditFor(undefined)}
+        insightId={auditFor ?? null}
+      />
 
       <aside className="space-y-4">
         <Card className="p-4 space-y-3">
