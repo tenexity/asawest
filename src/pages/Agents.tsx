@@ -71,6 +71,7 @@ export default function Agents() {
   const [editing, setEditing] = useState<Insight | null>(null);
   const [auditFor, setAuditFor] = useState<string | null | undefined>(undefined);
   const [draftingNarratives, setDraftingNarratives] = useState(false);
+  const [confirming, setConfirming] = useState<Insight | null>(null);
 
   async function load() {
     const { data, error } = await supabase
