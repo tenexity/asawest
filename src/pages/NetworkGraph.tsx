@@ -236,16 +236,28 @@ export default function NetworkGraph() {
         style: nodeStyle(COL.supplier.bg, COL.supplier.text),
       })
     );
-    catList.forEach((c, i) =>
+    const catTotals = new Map<string, number>();
+    for (const [k, w] of Object.entries(graph.category_branch)) {
+      const [cat] = k.split("|");
+      catTotals.set(cat, (catTotals.get(cat) ?? 0) + w);
+    }
+    const fmtK = (n: number) =>
+      n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : `$${Math.round(n / 1000)}k`;
+    catList.forEach((c, i) => {
+      const total = catTotals.get(c) ?? 0;
       nodes.push({
         id: `c-${c}`,
         position: { x: colCategory, y: space(catList.length, i) },
-        data: { label: `📦 ${c}`, type: "category", meta: { category: c } },
+        data: {
+          label: `📦 ${c}  ·  ${fmtK(total)}`,
+          type: "category",
+          meta: { category: c, total_flow: total },
+        },
         sourcePosition: Position.Right,
         targetPosition: Position.Left,
         style: nodeStyle(COL.category.bg, COL.category.text),
-      })
-    );
+      });
+    });
     brList.forEach((b, i) =>
       nodes.push({
         id: `b-${b.id}`,
