@@ -536,7 +536,14 @@ export default function NetworkGraph() {
             <Card>
               <CardHeader><CardTitle className="text-base">Severity Heat Map (Branch × Category)</CardTitle></CardHeader>
               <CardContent>
-                <Heatmap data={simResult.summary.heatmap} />
+                <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6 items-start">
+                  <Heatmap data={simResult.summary.heatmap} />
+                  <HeatmapSummary
+                    data={simResult.summary.heatmap}
+                    supplierName={simResult.summary.supplier_name}
+                    delayDays={simResult.summary.delay_days}
+                  />
+                </div>
               </CardContent>
             </Card>
 
