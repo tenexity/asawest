@@ -336,6 +336,16 @@ async function runCore(supabase: any, startedAt: number) {
       const safety = Math.max(1, Math.round(dly * 7));
       const reorder = Math.max(safety + 1, Math.round(dly * 14));
       let onHand = Math.max(0, Math.round(dly * dosTarget));
+      // Floor: any SKU not intentionally planted as a problem must carry
+      // enough stock that Days-of-Supply is meaningful (>= reorder point,
+      // and at least ~30 days of demand). C-class with dly=0.3 still lands
+      // around 9-27 units; the floor lifts that to a sane minimum.
+      const isProblem =
+        (stockedOutProds.has(p.id) || stockoutRiskProds.has(p.id) || excessProds.has(p.id))
+        && branchId === branchIds[0];
+      if (!isProblem) {
+        onHand = Math.max(onHand, reorder + 1, Math.round(dly * 30), 5);
+      }
       if (stockedOutProds.has(p.id) && branchId === branchIds[0]) {
         onHand = 0; problemStockedOut++;
       } else if (stockoutRiskProds.has(p.id) && branchId === branchIds[0]) {
@@ -423,7 +433,10 @@ async function runSales(supabase: any, offset: number, limit: number, startedAt:
   const { data: branches } = await supabase.from("branches").select("id, climate_zone").throwOnError();
 
   const today = new Date();
-  const startDate = new Date(today); startDate.setMonth(startDate.getMonth() - 18);
+  // 120-day window: covers the 90-day COGS metrics and the 30-day DoS
+  // calculation, while keeping insert volume tractable when seeding all
+  // 10k products. (Was 18 months — too heavy for full-catalog seeding.)
+  const startDate = new Date(today); startDate.setDate(startDate.getDate() - 120);
   const days: Date[] = [];
   for (let d = new Date(startDate); d <= today; d.setDate(d.getDate() + 1)) days.push(new Date(d));
 

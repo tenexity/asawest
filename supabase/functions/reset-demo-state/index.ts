@@ -51,9 +51,12 @@ Deno.serve(async (req) => {
       apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     };
     await fetch(`${base}/seed-data?stage=core`, { headers });
-    // sales in chunks - keep small for demo
-    for (let off = 0; off < 200; off += 50) {
-      await fetch(`${base}/seed-data?stage=sales&offset=${off}&limit=50`, { headers });
+    // Sales for the entire 10k catalog so every SKU with on-hand also has
+    // recent demand — required for Days-of-Supply to compute network-wide.
+    const TOTAL = 10000;
+    const CHUNK = 200;
+    for (let off = 0; off < TOTAL; off += CHUNK) {
+      await fetch(`${base}/seed-data?stage=sales&offset=${off}&limit=${CHUNK}`, { headers });
     }
 
     // Row counts
