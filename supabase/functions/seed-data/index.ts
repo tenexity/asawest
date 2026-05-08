@@ -433,7 +433,10 @@ async function runSales(supabase: any, offset: number, limit: number, startedAt:
   const { data: branches } = await supabase.from("branches").select("id, climate_zone").throwOnError();
 
   const today = new Date();
-  const startDate = new Date(today); startDate.setMonth(startDate.getMonth() - 18);
+  // 120-day window: covers the 90-day COGS metrics and the 30-day DoS
+  // calculation, while keeping insert volume tractable when seeding all
+  // 10k products. (Was 18 months — too heavy for full-catalog seeding.)
+  const startDate = new Date(today); startDate.setDate(startDate.getDate() - 120);
   const days: Date[] = [];
   for (let d = new Date(startDate); d <= today; d.setDate(d.getDate() + 1)) days.push(new Date(d));
 
