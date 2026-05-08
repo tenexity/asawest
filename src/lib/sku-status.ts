@@ -8,7 +8,10 @@ export function computeStatus(
   daysOfSupply: number | null,
 ): Status {
   if (on_hand === 0) return "Stockout";
-  if (daysOfSupply !== null && daysOfSupply > 180) return "Excess";
+  // No demand in the lookback window + stock on the shelf = dead/excess,
+  // not "Healthy". daysOfSupply is null only when daily demand is 0.
+  if (daysOfSupply === null) return "Excess";
+  if (daysOfSupply > 180) return "Excess";
   if (on_hand <= reorder_point) return "At Risk";
   if (on_hand <= reorder_point * 1.25) return "Watch";
   return "Healthy";
