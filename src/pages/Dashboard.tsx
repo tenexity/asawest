@@ -270,7 +270,7 @@ export default function Dashboard() {
           delta={0}
           spark={days30.map((d) => ({ x: d, y: deadStockValue }))}
           color={deadStockPct > 5 ? dangerColor : deadStockPct > 2 ? warningColor : successColor}
-          hint={`${fmtNum(deadStockPairs)} SKUs · ${deadStockPct.toFixed(1)}% of inventory · 0 sales 90d`}
+          hint={`${deadStockPct.toFixed(1)}% of inventory · 0 sales 90d`}
           to="/skus?filter=dead"
         />
         <KpiCard
