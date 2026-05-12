@@ -75,31 +75,13 @@ function combinedHint(abc: string, xyz: string): string {
   return "Used to set service level and forecasting strategy automatically.";
 }
 
-async function fetchAll<T>(
-  build: (from: number, to: number) => ReturnType<ReturnType<typeof supabase.from>["select"]>,
-): Promise<T[]> {
-  const all: T[] = [];
-  const pageSize = 1000;
-  let from = 0;
-  for (;;) {
-    const { data, error } = await build(from, from + pageSize - 1);
-    if (error || !data || data.length === 0) break;
-    all.push(...(data as unknown as T[]));
-    if (data.length < pageSize) break;
-    from += pageSize;
-  }
-  return all;
-}
-
 type SortKey = "sku" | "description" | "category" | "abc" | "totalOnHand" | "daysOfSupply" | "status";
 
 export default function Skus() {
   const { branchId } = useBranch();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [inv, setInv] = useState<Inv[]>([]);
-  const [sales, setSales] = useState<Sale[]>([]);
+  const [overview, setOverview] = useState<OverviewRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const initialFilter = searchParams.get("filter") ?? "";
@@ -116,40 +98,16 @@ export default function Skus() {
     let cancel = false;
     (async () => {
       setLoading(true);
-      const [p, i, s] = await Promise.all([
-        fetchAll<Product>((from, to) =>
-          supabase
-            .from("products")
-            .select("id,sku,description,category,abc_class,xyz_class")
-            .range(from, to),
-        ),
-        fetchAll<Inv>((from, to) => {
-          let q = supabase
-            .from("inventory_levels")
-            .select("branch_id,product_id,on_hand,reorder_point")
-            .range(from, to);
-          if (branchId !== "all") q = q.eq("branch_id", branchId);
-          return q;
-        }),
-        (async () => {
-          const since = new Date();
-          since.setDate(since.getDate() - 30);
-          const sinceStr = since.toISOString().slice(0, 10);
-          return await fetchAll<Sale>((from, to) => {
-            let q = supabase
-              .from("sales_history")
-              .select("product_id,branch_id,quantity,sale_date")
-              .gte("sale_date", sinceStr)
-              .range(from, to);
-            if (branchId !== "all") q = q.eq("branch_id", branchId);
-            return q;
-          });
-        })(),
-      ]);
+      const { data, error } = await supabase.rpc("skus_overview", {
+        p_branch_id: branchId === "all" ? null : branchId,
+      });
       if (cancel) return;
-      setProducts(p);
-      setInv(i);
-      setSales(s);
+      if (error) {
+        console.error("skus_overview error", error);
+        setOverview([]);
+      } else {
+        setOverview((data as unknown as OverviewRow[]) ?? []);
+      }
       setLoading(false);
     })();
     return () => {
@@ -158,43 +116,30 @@ export default function Skus() {
   }, [branchId]);
 
   const categories = useMemo(
-    () => Array.from(new Set(products.map((p) => p.category))).sort(),
-    [products],
+    () => Array.from(new Set(overview.map((p) => p.category))).sort(),
+    [overview],
   );
 
   const rows: Row[] = useMemo(() => {
-    const invByPid = new Map<string, Inv[]>();
-    for (const r of inv) {
-      const arr = invByPid.get(r.product_id) ?? [];
-      arr.push(r);
-      invByPid.set(r.product_id, arr);
-    }
-    const dailyByPid = new Map<string, number>();
-    for (const s of sales) {
-      dailyByPid.set(s.product_id, (dailyByPid.get(s.product_id) ?? 0) + s.quantity);
-    }
-    return products.map((p) => {
-      const rs = invByPid.get(p.id) ?? [];
-      const totalOnHand = rs.reduce((a, r) => a + r.on_hand, 0);
-      const totalRP = rs.reduce((a, r) => a + r.reorder_point, 0);
-      const daily = (dailyByPid.get(p.id) ?? 0) / 30;
-      const dos = daily > 0 ? totalOnHand / daily : null;
-      const status = computeStatus(totalOnHand, totalRP, dos);
+    return overview.map((p) => {
+      const daily = (p.qty30 ?? 0) / 30;
+      const dos = daily > 0 ? p.totalOnHand / daily : null;
+      const status = computeStatus(p.totalOnHand, p.totalRP, dos);
       return {
         id: p.id,
         sku: p.sku,
         description: p.description,
         category: p.category,
-        abc: p.abc_class,
-        xyz: p.xyz_class,
-        totalOnHand,
-        totalRP,
+        abc: p.abc,
+        xyz: p.xyz,
+        totalOnHand: p.totalOnHand,
+        totalRP: p.totalRP,
         dailyDemand: daily,
         daysOfSupply: dos,
         status,
       };
     });
-  }, [products, inv, sales]);
+  }, [overview]);
 
   const filtered = useMemo(() => {
     const ql = q.trim().toLowerCase();
