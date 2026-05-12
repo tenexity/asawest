@@ -482,10 +482,29 @@ async function runSales(supabase: any, offset: number, limit: number, startedAt:
   const lambdaByAbc: Record<string, () => number> = {
     A: () => 5 + rand() * 15, B: () => 1 + rand() * 3, C: () => 0.1 + rand() * 0.5,
   };
-  const monthMul = (pat: string, m: number) => {
-    if (pat === "cooling_peak") return [4,5,6,7].includes(m) ? 3 + rand() * 2 : 0.2 + rand() * 0.3;
-    if (pat === "heating_peak") return [10,11,0,1].includes(m) ? 3 + rand() * 2 : 0.2 + rand() * 0.3;
-    return 1;
+  // Smooth seasonal multiplier using a sinusoid centered on each pattern's peak month.
+  // Avoids the hard month-boundary step the old version produced.
+  const seasonMul = (pat: string, m: number) => {
+    if (pat === "none") return 1;
+    // peak month index (0-11) and amplitude
+    const peak = pat === "cooling_peak" ? 6 /* July */
+               : pat === "heating_peak" ? 0 /* January */
+               : pat === "freeze_event" ? 0 /* January */
+               : 6;
+    // distance in months around the year (0..6)
+    const d = Math.min(Math.abs(m - peak), 12 - Math.abs(m - peak));
+    // cos curve: 1.0 at far side, peaks at ~3.0x at peak month
+    const factor = 1 + 1.0 * Math.cos((d / 6) * Math.PI); // 0..2
+    // cooling/heating need stronger swing
+    if (pat === "cooling_peak" || pat === "heating_peak") return 0.3 + factor * 1.4; // 0.3..3.1
+    return 0.5 + factor * 0.75; // milder
+  };
+  // B2B distributor: heavy weekday demand, light weekends.
+  const dowMul = (dow: number) => {
+    if (dow === 0) return 0.08;       // Sun
+    if (dow === 6) return 0.35;       // Sat
+    if (dow === 1 || dow === 4) return 1.05; // Mon/Thu slightly heavier
+    return 1.0;
   };
 
   const branchIds = branches.map((b: any) => b.id);
