@@ -368,6 +368,12 @@ async function runCore(supabase: any, startedAt: number) {
       } else if (imbalanceProds.has(p.id) && bi === 2) {
         // AT-RISK at branch[2] (same SKU)
         onHand = Math.max(1, safety - ri(1, Math.max(1, Math.floor(safety * 0.6))));
+      } else if (rand() < 0.05) {
+        // Random sprinkle of shortfalls across the network so fill rate
+        // lands in a realistic 92-95% range instead of a perfect 100%.
+        // Mix of below-safety (true at-risk) and zero on_hand (stockout).
+        if (rand() < 0.25) onHand = 0;
+        else onHand = Math.max(1, safety - ri(1, Math.max(1, Math.floor(safety * 0.7))));
       }
       invRows.push({
         branch_id: branchId, product_id: p.id, on_hand: onHand,
@@ -476,10 +482,29 @@ async function runSales(supabase: any, offset: number, limit: number, startedAt:
   const lambdaByAbc: Record<string, () => number> = {
     A: () => 5 + rand() * 15, B: () => 1 + rand() * 3, C: () => 0.1 + rand() * 0.5,
   };
-  const monthMul = (pat: string, m: number) => {
-    if (pat === "cooling_peak") return [4,5,6,7].includes(m) ? 3 + rand() * 2 : 0.2 + rand() * 0.3;
-    if (pat === "heating_peak") return [10,11,0,1].includes(m) ? 3 + rand() * 2 : 0.2 + rand() * 0.3;
-    return 1;
+  // Smooth seasonal multiplier using a sinusoid centered on each pattern's peak month.
+  // Avoids the hard month-boundary step the old version produced.
+  const seasonMul = (pat: string, m: number) => {
+    if (pat === "none") return 1;
+    // peak month index (0-11) and amplitude
+    const peak = pat === "cooling_peak" ? 6 /* July */
+               : pat === "heating_peak" ? 0 /* January */
+               : pat === "freeze_event" ? 0 /* January */
+               : 6;
+    // distance in months around the year (0..6)
+    const d = Math.min(Math.abs(m - peak), 12 - Math.abs(m - peak));
+    // cos curve: 1.0 at far side, peaks at ~3.0x at peak month
+    const factor = 1 + 1.0 * Math.cos((d / 6) * Math.PI); // 0..2
+    // cooling/heating need stronger swing
+    if (pat === "cooling_peak" || pat === "heating_peak") return 0.3 + factor * 1.4; // 0.3..3.1
+    return 0.5 + factor * 0.75; // milder
+  };
+  // B2B distributor: heavy weekday demand, light weekends.
+  const dowMul = (dow: number) => {
+    if (dow === 0) return 0.08;       // Sun
+    if (dow === 6) return 0.35;       // Sat
+    if (dow === 1 || dow === 4) return 1.05; // Mon/Thu slightly heavier
+    return 1.0;
   };
 
   const branchIds = branches.map((b: any) => b.id);
@@ -500,7 +525,8 @@ async function runSales(supabase: any, offset: number, limit: number, startedAt:
       const baseLambda = lambdaByAbc[p.abc_class]();
       for (const day of days) {
         if (p.is_intermittent) {
-          if (rand() > 0.25) continue;
+          const intermittentP = 0.25 * dowMul(day.getDay());
+          if (rand() > intermittentP) continue;
           buffer.push({
             branch_id: branchId, product_id: p.id, sale_date: day.toISOString().slice(0,10),
             quantity: ri(1, 5),
@@ -510,7 +536,9 @@ async function runSales(supabase: any, offset: number, limit: number, startedAt:
           if (buffer.length >= 4000) await flush();
           continue;
         }
-        let lambda = baseLambda * monthMul(p.seasonality_pattern, day.getMonth());
+        let lambda = baseLambda * seasonMul(p.seasonality_pattern, day.getMonth()) * dowMul(day.getDay());
+        // Per-day noise so the line isn't a perfectly smooth ribbon
+        lambda *= 0.85 + rand() * 0.3;
         if (p.seasonality_pattern === "freeze_event") {
           const dateStr = day.toISOString().slice(0,10);
           if (!isFreezeBranch) lambda *= 0.05;
