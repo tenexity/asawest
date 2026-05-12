@@ -777,6 +777,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      dashboard_summary: { Args: { p_branch_id?: string }; Returns: Json }
       exec_readonly_sql: { Args: { query: string }; Returns: Json }
       network_graph_data: { Args: never; Returns: Json }
     }

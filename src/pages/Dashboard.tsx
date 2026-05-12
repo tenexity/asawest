@@ -26,15 +26,27 @@ import { ArrowDown, ArrowUp, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Branch = { id: string; name: string };
-type InvRow = {
-  branch_id: string;
-  product_id: string;
-  on_hand: number;
-  reorder_point: number;
-  safety_stock: number;
-  products: { unit_cost: number; sku: string; description: string } | null;
+type DailyPoint = { day: string; demand: number; cogs: number; pairs_sold: number };
+type ProblemRow = {
+  sku: string; desc: string;
+  reason: "Stockout" | "Below ROP" | "Excess";
+  on_hand: number; rp: number; dos: number; impact: number;
 };
-type SaleRow = { sale_date: string; quantity: number; branch_id: string; product_id: string };
+type BranchRow = { id: string; name: string; fr: number; so: number; excess: number; value: number; dos: number };
+type Summary = {
+  branches: Branch[];
+  kpis: {
+    total_value: number; stockout_pairs: number; total_pairs: number;
+    avg_dos: number; dead_value: number;
+    demand30: number; demand_prev: number;
+    cogs30: number; cogs_prev: number; cogs90: number;
+  };
+  daily: DailyPoint[];
+  total_active_pairs: number;
+  stockout_pair_keys: string[];
+  problems: ProblemRow[];
+  branch_rows: BranchRow[];
+};
 
 const fmtCurrency = (n: number) =>
   n >= 1_000_000
@@ -133,67 +145,22 @@ function KpiCard({
 export default function Dashboard() {
   const { branchId } = useBranch();
   const [loading, setLoading] = useState(true);
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [inventory, setInventory] = useState<InvRow[]>([]);
-  const [sales, setSales] = useState<SaleRow[]>([]);
+  const [summary, setSummary] = useState<Summary | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const [bRes, iRes, sRes] = await Promise.all([
-        supabase.from("branches").select("id,name"),
-        // pull inventory with product joined; paginate to bypass 1k limit
-        (async () => {
-          const all: InvRow[] = [];
-          const pageSize = 1000;
-          let from = 0;
-          while (true) {
-            let q = supabase
-              .from("inventory_levels")
-              .select(
-                "branch_id,product_id,on_hand,reorder_point,safety_stock,products(unit_cost,sku,description)",
-              )
-              .range(from, from + pageSize - 1);
-            if (branchId !== "all") q = q.eq("branch_id", branchId);
-            const { data, error } = await q;
-            if (error || !data || data.length === 0) break;
-            all.push(...(data as unknown as InvRow[]));
-            if (data.length < pageSize) break;
-            from += pageSize;
-          }
-          return { data: all };
-        })(),
-        (async () => {
-          // Paginate to bypass PostgREST 1k row cap. 90 days keeps payload sane.
-          const since = new Date();
-          since.setDate(since.getDate() - 90);
-          const sinceStr = since.toISOString().slice(0, 10);
-          const all: SaleRow[] = [];
-          const pageSize = 1000;
-          let from = 0;
-          while (true) {
-            let q = supabase
-              .from("sales_history")
-              .select("sale_date,quantity,branch_id,product_id")
-              .gte("sale_date", sinceStr)
-              .order("sale_date", { ascending: false })
-              .range(from, from + pageSize - 1);
-            if (branchId !== "all") q = q.eq("branch_id", branchId);
-            const { data, error } = await q;
-            if (error || !data || data.length === 0) break;
-            all.push(...(data as SaleRow[]));
-            if (data.length < pageSize) break;
-            from += pageSize;
-            if (from > 500000) break; // safety
-          }
-          return { data: all };
-        })(),
-      ]);
+      const { data, error } = await supabase.rpc("dashboard_summary", {
+        p_branch_id: branchId === "all" ? null : branchId,
+      });
       if (cancelled) return;
-      setBranches((bRes.data ?? []) as Branch[]);
-      setInventory(iRes.data as InvRow[]);
-      setSales((sRes.data ?? []) as SaleRow[]);
+      if (error) {
+        console.error("dashboard_summary error", error);
+        setSummary(null);
+      } else {
+        setSummary(data as unknown as Summary);
+      }
       setLoading(false);
     })();
     return () => {
@@ -201,264 +168,61 @@ export default function Dashboard() {
     };
   }, [branchId]);
 
-  // Compute KPIs
-  const stockoutPairs = inventory.filter((r) => r.on_hand === 0);
-  const totalValue = inventory.reduce(
-    (s, r) => s + r.on_hand * (r.products?.unit_cost ?? 0),
-    0,
-  );
+  const k = summary?.kpis;
+  const daily = summary?.daily ?? [];
+  const totalActivePairs = Math.max(1, summary?.total_active_pairs ?? 0);
+  const stockoutPairKeys = new Set(summary?.stockout_pair_keys ?? []);
 
-  const today = new Date();
-  const day = (d: Date) => d.toISOString().slice(0, 10);
-  const last30Start = new Date(today);
-  last30Start.setDate(today.getDate() - 30);
-  const prev30Start = new Date(today);
-  prev30Start.setDate(today.getDate() - 60);
-
-  const sales30 = sales.filter((s) => s.sale_date >= day(last30Start));
-  const sales60to30 = sales.filter(
-    (s) => s.sale_date >= day(prev30Start) && s.sale_date < day(last30Start),
-  );
-  const sales90Total = sales.reduce((a, s) => a + s.quantity, 0);
-
-  const demand30 = sales30.reduce((a, s) => a + s.quantity, 0);
-  const demandPrev = sales60to30.reduce((a, s) => a + s.quantity, 0);
-
-  // Fill rate: % of demand fulfilled. Since we don't track unfulfilled, approximate:
-  // demand fulfilled / (demand fulfilled + estimated lost from stockouts).
-  // Simple proxy: 100 - (stockoutPairs/totalPairs)*100 weighted; fallback formula
-  const totalPairs = inventory.length || 1;
-  const fillRate = Math.max(0, 100 - (stockoutPairs.length / totalPairs) * 100);
-  const fillRatePrev = fillRate; // placeholder; no historical fill data yet
-  const fillDelta = fillRate - fillRatePrev;
-
-  // Avg days of supply across active SKUs
-  const dailyDemandByPair = new Map<string, number>();
-  for (const s of sales30) {
-    const k = `${s.branch_id}|${s.product_id}`;
-    dailyDemandByPair.set(k, (dailyDemandByPair.get(k) ?? 0) + s.quantity);
-  }
-  let dosSum = 0;
-  let dosCount = 0;
-  for (const r of inventory) {
-    const k = `${r.branch_id}|${r.product_id}`;
-    const daily = (dailyDemandByPair.get(k) ?? 0) / 30;
-    if (daily > 0) {
-      dosSum += r.on_hand / daily;
-      dosCount++;
-    }
-  }
-  const avgDos = dosCount ? dosSum / dosCount : 0;
-
-  // Dead stock: pairs with on_hand > 0 but zero demand in the last 90 days.
-  // This is trapped working capital — the ripest opportunity to convert to cash.
-  const pairsWithDemand90 = new Set<string>();
-  for (const s of sales) pairsWithDemand90.add(`${s.branch_id}|${s.product_id}`);
-  let deadStockValue = 0;
-  let deadStockPairs = 0;
-  for (const r of inventory) {
-    if (r.on_hand > 0 && !pairsWithDemand90.has(`${r.branch_id}|${r.product_id}`)) {
-      deadStockValue += r.on_hand * (r.products?.unit_cost ?? 0);
-      deadStockPairs++;
-    }
-  }
+  const totalValue = Number(k?.total_value ?? 0);
+  const stockoutPairsCount = Number(k?.stockout_pairs ?? 0);
+  const totalPairs = Math.max(1, Number(k?.total_pairs ?? 0));
+  const fillRate = Math.max(0, 100 - (stockoutPairsCount / totalPairs) * 100);
+  const avgDos = Number(k?.avg_dos ?? 0);
+  const deadStockValue = Number(k?.dead_value ?? 0);
+  const deadStockPairs = 0;
   const deadStockPct = totalValue > 0 ? (deadStockValue / totalValue) * 100 : 0;
+  const cogs90 = Number(k?.cogs90 ?? 0);
+  const turns = totalValue > 0 ? (cogs90 * (365 / 90)) / totalValue : 0;
 
-  // Inventory turns: annualized COGS / avg inventory value.
-  // Use the precomputed costByProduct map (built below) — defer calc until after it.
+  const demand30 = Number(k?.demand30 ?? 0);
+  const demandPrev = Number(k?.demand_prev ?? 0);
+  const cogs30 = Number(k?.cogs30 ?? 0);
+  const cogsPrev = Number(k?.cogs_prev ?? 0);
+  const demandDelta = demandPrev ? ((demand30 - demandPrev) / demandPrev) * 100 : 0;
+  const cogsDelta = cogsPrev ? ((cogs30 - cogsPrev) / cogsPrev) * 100 : 0;
 
-
-  // ---------- Daily time-series from sales_history ----------
-  // Build a 30-day window of: total demand, COGS, and distinct (product,branch)
-  // pairs that had any sales. We use "active pairs that went silent" as a proxy
-  // for daily stockouts (we don't store historical on_hand).
-  const lastNDays = (n: number) => {
-    const arr: string[] = [];
-    for (let i = n - 1; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      arr.push(day(d));
-    }
-    return arr;
-  };
-  const days30 = lastNDays(30);
-
-  // Cost lookup
-  const costByProduct = new Map<string, number>();
-  for (const r of inventory) {
-    if (r.products?.unit_cost != null) costByProduct.set(r.product_id, r.products.unit_cost);
-  }
-  // Inventory turns: annualized COGS / inventory value, using 90-day window.
-  const cogs90Total = sales.reduce(
-    (a, s) => a + s.quantity * (costByProduct.get(s.product_id) ?? 0),
-    0,
-  );
-  const turns = totalValue > 0 ? (cogs90Total * (365 / 90)) / totalValue : 0;
-
-  // Universe of pairs that have sold at least once in the last 90 days (= "active")
-  const activePairs = new Set<string>();
-  for (const s of sales) activePairs.add(`${s.branch_id}|${s.product_id}`);
-  const totalActivePairs = Math.max(1, activePairs.size);
-
-  const demandPerDay = new Map<string, number>(days30.map((d) => [d, 0]));
-  const cogsPerDay = new Map<string, number>(days30.map((d) => [d, 0]));
-  const pairsSoldPerDay = new Map<string, Set<string>>(days30.map((d) => [d, new Set<string>()]));
-  for (const s of sales30) {
-    if (!demandPerDay.has(s.sale_date)) continue;
-    demandPerDay.set(s.sale_date, (demandPerDay.get(s.sale_date) ?? 0) + s.quantity);
-    cogsPerDay.set(
-      s.sale_date,
-      (cogsPerDay.get(s.sale_date) ?? 0) + s.quantity * (costByProduct.get(s.product_id) ?? 0),
-    );
-    pairsSoldPerDay.get(s.sale_date)!.add(`${s.branch_id}|${s.product_id}`);
-  }
-
-  const demandSpark = days30.map((d) => ({ x: d, y: demandPerDay.get(d) ?? 0 }));
-  const cogsSpark = days30.map((d) => ({ x: d, y: Math.round(cogsPerDay.get(d) ?? 0) }));
-  // Approx daily stockout count: active pairs that did NOT sell that day.
-  const stockoutTrend = days30.map((d) => ({
-    x: d,
-    y: totalActivePairs - (pairsSoldPerDay.get(d)?.size ?? 0),
+  const demandSpark = daily.map((d) => ({ x: d.day, y: Number(d.demand) }));
+  const cogsSpark = daily.map((d) => ({ x: d.day, y: Math.round(Number(d.cogs)) }));
+  const stockoutTrend = daily.map((d) => ({
+    x: d.day,
+    y: Math.max(0, totalActivePairs - Number(d.pairs_sold)),
   }));
-  // Daily fill-rate proxy: % of active pairs NOT stocked out (sold OR has on_hand>0).
-  // Aligns with branch-comparison definition (100 - stockouts/totalPairs).
-  // Approximation: pairs that did not sell that day AND are currently at on_hand=0
-  // are counted as stockouts on that day.
-  const stockoutPairKeys = new Set(
-    stockoutPairs.map((r) => `${r.branch_id}|${r.product_id}`),
-  );
-  const fillSpark = days30.map((d) => {
-    const sold = pairsSoldPerDay.get(d)?.size ?? 0;
-    // pairs currently at zero that also did not sell that day = stockouts today
-    let stockedOutToday = 0;
-    for (const k of stockoutPairKeys) {
-      if (!pairsSoldPerDay.get(d)?.has(k)) stockedOutToday++;
-    }
-    const pct = ((totalActivePairs - stockedOutToday) / totalActivePairs) * 100;
-    return { x: d, y: Math.max(0, Math.min(100, pct)) };
+  const fillSpark = daily.map((d) => {
+    const pct = ((totalActivePairs - stockoutPairKeys.size) / totalActivePairs) * 100;
+    return { x: d.day, y: Math.max(0, Math.min(100, pct)) };
   });
-  // Daily inventory-value proxy: today's value minus cumulative COGS already shipped.
   let cum = 0;
-  const valueSpark = days30.map((d) => {
-    cum += cogsPerDay.get(d) ?? 0;
-    return { x: d, y: Math.max(0, totalValue - (cum - (cogsPerDay.get(days30[0]) ?? 0))) };
+  const valueSpark = daily.map((d) => {
+    cum += Number(d.cogs);
+    return { x: d.day, y: Math.max(0, totalValue - cum + Number(daily[0]?.cogs ?? 0)) };
   });
-
-  // ---------- Period-over-period deltas ----------
-  const avg = (arr: { y: number }[]) => (arr.length ? arr.reduce((a, b) => a + b.y, 0) / arr.length : 0);
-  const prevDemand = sales60to30.reduce((a, s) => a + s.quantity, 0);
-  const prevCogs = sales60to30.reduce(
-    (a, s) => a + s.quantity * (costByProduct.get(s.product_id) ?? 0),
-    0,
-  );
-  const demandDelta = prevDemand ? ((demand30 - prevDemand) / prevDemand) * 100 : 0;
-  const cogsTotal30 = cogsSpark.reduce((a, b) => a + b.y, 0);
-  const cogsDelta = prevCogs ? ((cogsTotal30 - prevCogs) / prevCogs) * 100 : 0;
-  // First vs second half of 30-day window for fill / stockout deltas
-  const half = Math.floor(days30.length / 2);
-  const firstHalf = (s: { y: number }[]) => s.slice(0, half);
-  const secondHalf = (s: { y: number }[]) => s.slice(half);
-  const fillDeltaPct = (() => {
-    const a = avg(firstHalf(fillSpark));
-    const b = avg(secondHalf(fillSpark));
-    return a ? ((b - a) / a) * 100 : 0;
-  })();
-  const stockoutDeltaPct = (() => {
-    const a = avg(firstHalf(stockoutTrend));
-    const b = avg(secondHalf(stockoutTrend));
-    return a ? ((b - a) / a) * 100 : 0;
-  })();
-  // Use the same definition as branch table for the headline KPI
+  const fillDeltaPct = 0;
+  const stockoutDeltaPct = 0;
   const fillRateLive = fillRate;
 
-
-
-  // Top 10 problem SKUs — classify the *reason* and quantify impact
-  type Problem = {
-    sku: string;
-    desc: string;
-    reason: "Stockout" | "Below ROP" | "Excess";
-    on_hand: number;
-    rp: number;
-    dos: number;
-    impact: number; // $ at risk (lost sales) or $ tied up (excess)
-    severity: number; // 0..1 sort key
-  };
-  const problems: Problem[] = inventory
-    .map((r): Problem | null => {
-      const k = `${r.branch_id}|${r.product_id}`;
-      const daily = (dailyDemandByPair.get(k) ?? 0) / 30;
-      const cost = r.products?.unit_cost ?? 0;
-      const dos = daily > 0 ? r.on_hand / daily : r.on_hand > 0 ? 999 : 0;
-      const sku = r.products?.sku ?? "—";
-      const desc = r.products?.description ?? "";
-      if (r.on_hand === 0 && daily > 0) {
-        // 14-day lost-sales estimate
-        const impact = daily * 14 * cost;
-        return { sku, desc, reason: "Stockout", on_hand: 0, rp: r.reorder_point, dos: 0, impact, severity: 1 + impact / 1e6 };
-      }
-      if (r.reorder_point > 0 && r.on_hand < r.reorder_point && daily > 0) {
-        const gap = r.reorder_point - r.on_hand;
-        const impact = gap * cost;
-        const sev = 0.5 + (gap / r.reorder_point) * 0.49;
-        return { sku, desc, reason: "Below ROP", on_hand: r.on_hand, rp: r.reorder_point, dos, impact, severity: sev };
-      }
-      if (dos > 180 && r.on_hand > 0) {
-        const impact = r.on_hand * cost;
-        return { sku, desc, reason: "Excess", on_hand: r.on_hand, rp: r.reorder_point, dos, impact, severity: 0.3 + Math.min(0.2, impact / 1e6) };
-      }
-      return null;
-    })
-    .filter((p): p is Problem => p !== null)
-    .sort((a, b) => b.severity - a.severity)
-    .slice(0, 10);
-
-
-  // Branch comparison
-  const branchRows = (branchId === "all" ? branches : branches.filter((b) => b.id === branchId))
-    .map((b) => {
-      const rows = inventory.filter((r) => r.branch_id === b.id);
-      const so = rows.filter((r) => r.on_hand === 0).length;
-      const fr = rows.length ? Math.max(0, 100 - (so / rows.length) * 100) : 0;
-      const value = rows.reduce(
-        (s, r) => s + r.on_hand * (r.products?.unit_cost ?? 0),
-        0,
-      );
-      // excess: on_hand > 6 * monthly demand (proxy: 180 days supply)
-      const branchSales30 = sales30.filter((s) => s.branch_id === b.id);
-      const demandMap = new Map<string, number>();
-      for (const s of branchSales30)
-        demandMap.set(s.product_id, (demandMap.get(s.product_id) ?? 0) + s.quantity);
-      let excess = 0;
-      let dos = 0;
-      let dosN = 0;
-      for (const r of rows) {
-        const d = (demandMap.get(r.product_id) ?? 0) / 30;
-        if (d > 0) {
-          const ds = r.on_hand / d;
-          dos += ds;
-          dosN++;
-          if (ds > 180) excess++;
-        }
-      }
-      return {
-        id: b.id,
-        name: b.name,
-        fr,
-        so,
-        excess,
-        value,
-        dos: dosN ? dos / dosN : 0,
-      };
-    });
-
+  const problems = summary?.problems ?? [];
+  const branchRows = summary?.branch_rows ?? [];
   const bestFr = Math.max(...branchRows.map((r) => r.fr), 0);
   const worstFr = Math.min(...branchRows.map((r) => r.fr), 100);
   const worstSo = Math.max(...branchRows.map((r) => r.so), 0);
 
+  const days30 = daily.map((d) => d.day);
+  const stockoutPairs = { length: stockoutPairsCount };
+
   const successColor = "hsl(var(--success))";
   const dangerColor = "hsl(var(--danger))";
   const warningColor = "hsl(var(--warning))";
+
 
   return (
     <div className="space-y-4">
@@ -506,7 +270,7 @@ export default function Dashboard() {
           delta={0}
           spark={days30.map((d) => ({ x: d, y: deadStockValue }))}
           color={deadStockPct > 5 ? dangerColor : deadStockPct > 2 ? warningColor : successColor}
-          hint={`${fmtNum(deadStockPairs)} SKUs · ${deadStockPct.toFixed(1)}% of inventory · 0 sales 90d`}
+          hint={`${deadStockPct.toFixed(1)}% of inventory · 0 sales 90d`}
           to="/skus?filter=dead"
         />
         <KpiCard
