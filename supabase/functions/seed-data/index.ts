@@ -368,6 +368,12 @@ async function runCore(supabase: any, startedAt: number) {
       } else if (imbalanceProds.has(p.id) && bi === 2) {
         // AT-RISK at branch[2] (same SKU)
         onHand = Math.max(1, safety - ri(1, Math.max(1, Math.floor(safety * 0.6))));
+      } else if (rand() < 0.05) {
+        // Random sprinkle of shortfalls across the network so fill rate
+        // lands in a realistic 92-95% range instead of a perfect 100%.
+        // Mix of below-safety (true at-risk) and zero on_hand (stockout).
+        if (rand() < 0.25) onHand = 0;
+        else onHand = Math.max(1, safety - ri(1, Math.max(1, Math.floor(safety * 0.7))));
       }
       invRows.push({
         branch_id: branchId, product_id: p.id, on_hand: onHand,
