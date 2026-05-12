@@ -206,6 +206,7 @@ Deno.serve(async (req) => {
 
     const sqlExecuted: string[] = [];
     let finalText = "";
+    let lastToolResultsEmpty = false;
     for (let i = 0; i < 8; i++) {
       const resp = await callClaude(messages);
       messages.push({ role: "assistant", content: resp.content });
