@@ -27,21 +27,17 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 import { computeStatus, statusToken, Status } from "@/lib/sku-status";
 
-type Inv = {
-  branch_id: string;
-  product_id: string;
-  on_hand: number;
-  reorder_point: number;
-};
-type Product = {
+type OverviewRow = {
   id: string;
   sku: string;
   description: string;
   category: string;
-  abc_class: string;
-  xyz_class: string;
+  abc: string;
+  xyz: string;
+  totalOnHand: number;
+  totalRP: number;
+  qty30: number;
 };
-type Sale = { product_id: string; branch_id: string; quantity: number; sale_date: string };
 
 type Row = {
   id: string;
