@@ -138,14 +138,16 @@ export default function Skus() {
         (async () => {
           const since = new Date();
           since.setDate(since.getDate() - 30);
-          let q = supabase
-            .from("sales_history")
-            .select("product_id,branch_id,quantity,sale_date")
-            .gte("sale_date", since.toISOString().slice(0, 10))
-            .limit(50000);
-          if (branchId !== "all") q = q.eq("branch_id", branchId);
-          const { data } = await q;
-          return (data ?? []) as Sale[];
+          const sinceStr = since.toISOString().slice(0, 10);
+          return await fetchAll<Sale>((from, to) => {
+            let q = supabase
+              .from("sales_history")
+              .select("product_id,branch_id,quantity,sale_date")
+              .gte("sale_date", sinceStr)
+              .range(from, to);
+            if (branchId !== "all") q = q.eq("branch_id", branchId);
+            return q;
+          });
         })(),
       ]);
       if (cancel) return;
