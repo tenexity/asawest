@@ -535,7 +535,9 @@ async function runSales(supabase: any, offset: number, limit: number, startedAt:
           if (buffer.length >= 4000) await flush();
           continue;
         }
-        let lambda = baseLambda * monthMul(p.seasonality_pattern, day.getMonth());
+        let lambda = baseLambda * seasonMul(p.seasonality_pattern, day.getMonth()) * dowMul(day.getDay());
+        // Per-day noise so the line isn't a perfectly smooth ribbon
+        lambda *= 0.85 + rand() * 0.3;
         if (p.seasonality_pattern === "freeze_event") {
           const dateStr = day.toISOString().slice(0,10);
           if (!isFreezeBranch) lambda *= 0.05;
