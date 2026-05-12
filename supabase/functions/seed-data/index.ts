@@ -525,7 +525,8 @@ async function runSales(supabase: any, offset: number, limit: number, startedAt:
       const baseLambda = lambdaByAbc[p.abc_class]();
       for (const day of days) {
         if (p.is_intermittent) {
-          if (rand() > 0.25) continue;
+          const intermittentP = 0.25 * dowMul(day.getDay());
+          if (rand() > intermittentP) continue;
           buffer.push({
             branch_id: branchId, product_id: p.id, sale_date: day.toISOString().slice(0,10),
             quantity: ri(1, 5),
