@@ -778,6 +778,7 @@ export type Database = {
     }
     Functions: {
       exec_readonly_sql: { Args: { query: string }; Returns: Json }
+      network_graph_data: { Args: never; Returns: Json }
     }
     Enums: {
       abc_class: "A" | "B" | "C"
