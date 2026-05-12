@@ -206,6 +206,7 @@ Deno.serve(async (req) => {
 
     const sqlExecuted: string[] = [];
     let finalText = "";
+    let lastToolResultsEmpty = false;
     for (let i = 0; i < 8; i++) {
       const resp = await callClaude(messages);
       messages.push({ role: "assistant", content: resp.content });
@@ -215,16 +216,28 @@ Deno.serve(async (req) => {
         break;
       }
       const toolResults = [];
+      lastToolResultsEmpty = true;
       for (const tu of toolUses) {
         const { result, sql } = await runTool(sb, tu.name, tu.input);
         if (sql) sqlExecuted.push(sql);
         if (tu.name !== "run_inventory_query" && tu.input) {
-          // capture pseudo-SQL for transparency
           sqlExecuted.push(`-- tool: ${tu.name}(${JSON.stringify(tu.input)})`);
         }
+        // Track whether any tool returned data
+        const hasData = Array.isArray(result)
+          ? result.length > 0
+          : result && typeof result === "object" && !("error" in result) && Object.keys(result).length > 0;
+        if (hasData) lastToolResultsEmpty = false;
         toolResults.push({ type: "tool_result", tool_use_id: tu.id, content: JSON.stringify(result).slice(0, 12000) });
       }
       messages.push({ role: "user", content: toolResults });
+    }
+
+    // Fallback if Claude returned no text (e.g. exhausted tool loop or stopped after a tool call)
+    if (!finalText.trim()) {
+      finalText = lastToolResultsEmpty
+        ? "I ran the queries but didn't find any matching records in the current data. This can happen when the demo dataset doesn't contain the specific pattern you're asking about (for example, the same SKU being excess at one branch *and* at-risk at another). Try a related question — e.g. *which branches have the most stockouts?* or *which SKUs are excess at Phoenix?* — or reset the demo data from the Demo panel.\n\nNEXT_QUESTION: Which branches have the most stockouts right now?"
+        : "I queried the data but couldn't compose a final answer. Please try rephrasing your question.\n\nNEXT_QUESTION: Which suppliers have the worst on-time performance this quarter?";
     }
 
     // Persist messages

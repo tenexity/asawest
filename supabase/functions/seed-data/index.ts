@@ -326,35 +326,48 @@ async function runCore(supabase: any, startedAt: number) {
   const stockoutRiskProds = new Set(shuffled.slice(0, 50).map((p: any) => p.id));
   const stockedOutProds = new Set(shuffled.slice(50, 70).map((p: any) => p.id));
   const excessProds = new Set(shuffled.slice(70, 170).map((p: any) => p.id));
+  // Cross-branch imbalance: same SKU is EXCESS at branch[1] AND AT-RISK at branch[2].
+  // This is the canonical "rebalance opportunity" pattern that drives the
+  // /ask chat scenario "which SKUs are excess at X but at risk at Y".
+  const imbalanceProds = new Set(shuffled.slice(170, 320).map((p: any) => p.id));
+  // Pure at-risk (low stock at branch[0], healthy elsewhere)
+  const atRiskProds = new Set(shuffled.slice(320, 420).map((p: any) => p.id));
   const today = new Date();
   const invRows: any[] = [];
-  let problemStockoutRisk = 0, problemStockedOut = 0, problemExcess = 0;
+  let problemStockoutRisk = 0, problemStockedOut = 0, problemExcess = 0, problemAtRisk = 0, problemImbalance = 0;
   for (const p of insertedProducts) {
-    for (const branchId of branchIds) {
+    for (let bi = 0; bi < branchIds.length; bi++) {
+      const branchId = branchIds[bi];
       const dly = avgDaily(p.abc_class, p.is_intermittent);
       const dosTarget = 30 + Math.floor(rand() * 60);
-      const safety = Math.max(1, Math.round(dly * 7));
+      const safety = Math.max(3, Math.round(dly * 7));
       const reorder = Math.max(safety + 1, Math.round(dly * 14));
       let onHand = Math.max(0, Math.round(dly * dosTarget));
-      // Floor: any SKU not intentionally planted as a problem must carry
-      // enough stock that Days-of-Supply is meaningful (>= reorder point,
-      // and at least ~30 days of demand). C-class with dly=0.3 still lands
-      // around 9-27 units; the floor lifts that to a sane minimum.
-      const isProblem =
-        (stockedOutProds.has(p.id) || stockoutRiskProds.has(p.id) || excessProds.has(p.id))
-        && branchId === branchIds[0];
-      if (!isProblem) {
+      const isPlantedHere =
+        ((stockedOutProds.has(p.id) || stockoutRiskProds.has(p.id) || excessProds.has(p.id) || atRiskProds.has(p.id)) && bi === 0)
+        || (imbalanceProds.has(p.id) && (bi === 1 || bi === 2));
+      if (!isPlantedHere) {
         onHand = Math.max(onHand, reorder + 1, Math.round(dly * 30), 5);
       }
-      if (stockedOutProds.has(p.id) && branchId === branchIds[0]) {
+      if (stockedOutProds.has(p.id) && bi === 0) {
         onHand = 0; problemStockedOut++;
-      } else if (stockoutRiskProds.has(p.id) && branchId === branchIds[0]) {
-        onHand = Math.max(0, reorder - ri(1, Math.max(2, Math.round(reorder * 0.3))));
-        if (onHand >= reorder) onHand = Math.max(0, reorder - 1);
+      } else if (stockoutRiskProds.has(p.id) && bi === 0) {
+        // Below safety stock but not zero (true at-risk)
+        onHand = Math.max(1, safety - ri(1, Math.max(1, Math.floor(safety * 0.5))));
         problemStockoutRisk++;
-      } else if (excessProds.has(p.id) && branchId === branchIds[0]) {
+      } else if (atRiskProds.has(p.id) && bi === 0) {
+        onHand = Math.max(1, safety - ri(1, Math.max(1, Math.floor(safety * 0.6))));
+        problemAtRisk++;
+      } else if (excessProds.has(p.id) && bi === 0) {
         onHand = Math.max(1, Math.round(dly * (200 + ri(0, 100))));
         problemExcess++;
+      } else if (imbalanceProds.has(p.id) && bi === 1) {
+        // EXCESS at branch[1]
+        onHand = Math.max(safety * 8, Math.round(dly * (180 + ri(0, 80))));
+        problemImbalance++;
+      } else if (imbalanceProds.has(p.id) && bi === 2) {
+        // AT-RISK at branch[2] (same SKU)
+        onHand = Math.max(1, safety - ri(1, Math.max(1, Math.floor(safety * 0.6))));
       }
       invRows.push({
         branch_id: branchId, product_id: p.id, on_hand: onHand,
@@ -366,7 +379,8 @@ async function runCore(supabase: any, startedAt: number) {
     }
   }
   await chunkInsert(supabase, "inventory_levels", invRows, 2000);
-  log.push(`inventory_levels: ${invRows.length}  PLANTED — risk:${problemStockoutRisk} out:${problemStockedOut} excess:${problemExcess}`);
+  log.push(`inventory_levels: ${invRows.length}  PLANTED — risk:${problemStockoutRisk} out:${problemStockedOut} excess:${problemExcess} atRisk:${problemAtRisk} imbalance:${problemImbalance}`);
+
 
   // POs
   const poRows: any[] = [];
