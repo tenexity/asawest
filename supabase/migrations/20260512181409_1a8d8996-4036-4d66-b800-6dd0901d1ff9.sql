@@ -1,0 +1,1 @@
+TRUNCATE TABLE sales_history, inventory_levels, purchase_order_items, purchase_orders, insights, transfer_orders, reorder_recommendations, markdown_candidates, saved_simulations, chat_messages, conversations, supplier_products, products, suppliers, branches RESTART IDENTITY CASCADE;
