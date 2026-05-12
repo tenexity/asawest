@@ -26,15 +26,27 @@ import { ArrowDown, ArrowUp, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Branch = { id: string; name: string };
-type InvRow = {
-  branch_id: string;
-  product_id: string;
-  on_hand: number;
-  reorder_point: number;
-  safety_stock: number;
-  products: { unit_cost: number; sku: string; description: string } | null;
+type DailyPoint = { day: string; demand: number; cogs: number; pairs_sold: number };
+type ProblemRow = {
+  sku: string; desc: string;
+  reason: "Stockout" | "Below ROP" | "Excess";
+  on_hand: number; rp: number; dos: number; impact: number;
 };
-type SaleRow = { sale_date: string; quantity: number; branch_id: string; product_id: string };
+type BranchRow = { id: string; name: string; fr: number; so: number; excess: number; value: number; dos: number };
+type Summary = {
+  branches: Branch[];
+  kpis: {
+    total_value: number; stockout_pairs: number; total_pairs: number;
+    avg_dos: number; dead_value: number;
+    demand30: number; demand_prev: number;
+    cogs30: number; cogs_prev: number; cogs90: number;
+  };
+  daily: DailyPoint[];
+  total_active_pairs: number;
+  stockout_pair_keys: string[];
+  problems: ProblemRow[];
+  branch_rows: BranchRow[];
+};
 
 const fmtCurrency = (n: number) =>
   n >= 1_000_000
