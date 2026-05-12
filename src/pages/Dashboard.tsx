@@ -37,6 +37,7 @@ type Summary = {
   branches: Branch[];
   kpis: {
     total_value: number; stockout_pairs: number; total_pairs: number;
+    active_pairs: number; well_stocked_pairs: number;
     avg_dos: number; dead_value: number;
     demand30: number; demand_prev: number;
     cogs30: number; cogs_prev: number; cogs90: number;
