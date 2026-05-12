@@ -37,6 +37,7 @@ type Summary = {
   branches: Branch[];
   kpis: {
     total_value: number; stockout_pairs: number; total_pairs: number;
+    active_pairs: number; well_stocked_pairs: number;
     avg_dos: number; dead_value: number;
     demand30: number; demand_prev: number;
     cogs30: number; cogs_prev: number; cogs90: number;
@@ -176,7 +177,10 @@ export default function Dashboard() {
   const totalValue = Number(k?.total_value ?? 0);
   const stockoutPairsCount = Number(k?.stockout_pairs ?? 0);
   const totalPairs = Math.max(1, Number(k?.total_pairs ?? 0));
-  const fillRate = Math.max(0, 100 - (stockoutPairsCount / totalPairs) * 100);
+  const activePairs = Math.max(1, Number(k?.active_pairs ?? 0));
+  const wellStockedPairs = Number(k?.well_stocked_pairs ?? 0);
+  // Fill rate: of active SKU-branch pairs, % adequately stocked (on_hand >= safety_stock)
+  const fillRate = (wellStockedPairs / activePairs) * 100;
   const avgDos = Number(k?.avg_dos ?? 0);
   const deadStockValue = Number(k?.dead_value ?? 0);
   const deadStockPairs = 0;
