@@ -780,6 +780,7 @@ export type Database = {
       dashboard_summary: { Args: { p_branch_id?: string }; Returns: Json }
       exec_readonly_sql: { Args: { query: string }; Returns: Json }
       network_graph_data: { Args: never; Returns: Json }
+      skus_overview: { Args: { p_branch_id?: string }; Returns: Json }
     }
     Enums: {
       abc_class: "A" | "B" | "C"
