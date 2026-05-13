@@ -579,8 +579,8 @@ export default function NetworkGraph() {
                             </TooltipTrigger>
                             <TooltipContent className="max-w-xs text-xs">
                               <p className="font-semibold mb-1">Units short over horizon</p>
-                              <p className="font-mono">max(0, ⌈avg_daily_demand × horizon⌉ − on_hand − on_order)</p>
-                              <p className="mt-1">Horizon = lead_time + delay_days + 14 days of buffer demand. This is the gap a transfer or expedite PO needs to cover.</p>
+                              <p>Day-by-day projected lost sales after on-hand inventory and incoming orders are consumed.</p>
+                              <p className="mt-1">Horizon = lead time + delay days + 14 days of buffer demand.</p>
                             </TooltipContent>
                           </Tooltip>
                         </TableHead>
@@ -615,7 +615,7 @@ export default function NetworkGraph() {
                               </TooltipTrigger>
                               <TooltipContent className="max-w-xs text-xs">
                                 <p className="font-semibold mb-1">Shortfall over horizon</p>
-                                <p className="font-mono">⌈{r.avg_daily_demand} × horizon⌉ − {r.on_hand} − on_order = <b>{r.units_short}</b></p>
+                                <p>Projected unfilled demand over the simulation horizon: <b>{r.units_short}</b> units.</p>
                                 <p className="mt-1">At ${r.unit_price.toFixed(2)}/unit → ${r.revenue_at_risk.toLocaleString()} revenue exposed.</p>
                                 {r.transfer_branch && (
                                   <p className="mt-1 text-emerald-600">{r.transfer_units} units of surplus available at {r.transfer_branch}.</p>
