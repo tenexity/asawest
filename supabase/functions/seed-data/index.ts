@@ -279,39 +279,33 @@ async function runCore(supabase: any, startedAt: number) {
   // SUPPLIER_PRODUCTS
   const moqOptions = [1, 5, 10, 25, 50, 100, 250];
   const categorySupplierBias: Record<string, string[]> = {
-    PVC: ["Charlotte Pipe","Spears Mfg","NIBCO"],
+    PVC: ["Charlotte Pipe","Spears Mfg","Oatey"],
     copper: ["Mueller Industries","NIBCO"],
-    PEX: ["Uponor","Viega","SharkBite","Reliance Worldwide"],
+    PEX: ["Uponor","Viega","SharkBite","Reliance Worldwide","Cash Acme"],
     water_heaters: ["A.O. Smith","Bradford White","Rheem","Lochinvar","State Water Heaters","Navien","Noritz","Takagi","HTP"],
     HVAC_equipment: ["Carrier","Trane","Goodman","Daikin","Mitsubishi Electric","Fujitsu","LG HVAC"],
-    refrigerants: ["Honeywell","Emerson"],
-    controls: ["Honeywell","Resideo","Belimo","Siemens BT","Johnson Controls","Aprilaire"],
-    service_parts: ["Watts","Webstone","Cash Acme","McDonnell & Miller","Amtrol"],
-    fittings: ["NIBCO","Apollo Valves","Watts","Webstone","Charlotte Pipe","Mueller Industries"],
-    valves: ["Apollo Valves","Milwaukee Valve","Watts","NIBCO"],
+    refrigerants: ["Honeywell","Emerson","RectorSeal"],
+    controls: ["Resideo","Belimo","Siemens BT","Johnson Controls","Aprilaire"],
+    service_parts: ["Watts","Webstone","McDonnell & Miller","Amtrol","Taco","Grundfos","Burnham","Weil-McLain"],
+    fittings: ["Apollo Valves","Fernco","Zurn","Jay R. Smith","Caleffi"],
+    valves: ["Milwaukee Valve","Sloan","Wilkins"],
   };
   const supplierByName: Record<string, any> = {};
   suppliers.forEach((s: any) => (supplierByName[s.name] = s));
 
   const sp: any[] = [];
   for (const p of insertedProducts) {
-    const bias = categorySupplierBias[p.category] || [];
-    const pool: any[] = [];
-    for (const n of bias) if (supplierByName[n]) pool.push(supplierByName[n]);
-    while (pool.length < 3) pool.push(suppliers[Math.floor(rand() * suppliers.length)]);
-    const n = ri(1, 3);
-    const chosen = new Set<string>();
-    for (let i = 0; i < n; i++) {
-      const s = pool[ri(0, pool.length - 1)];
-      if (chosen.has(s.id)) continue;
-      chosen.add(s.id);
+    const pool = (categorySupplierBias[p.category] || [])
+      .map((n) => supplierByName[n])
+      .filter(Boolean);
+    if (pool.length === 0) throw new Error(`No supplier pool for ${p.category}`);
+    const s = pool[ri(0, pool.length - 1)];
       sp.push({
         supplier_id: s.id, product_id: p.id,
         supplier_sku: `${s.name.substring(0, 3).toUpperCase().replace(/\s/g, "")}-${p.sku}`,
         cost: Math.round(Number(p.unit_cost) * (0.92 + rand() * 0.13) * 100) / 100,
-        moq: pick(moqOptions), is_primary: i === 0,
+        moq: pick(moqOptions), is_primary: true,
       });
-    }
   }
   await chunkInsert(supabase, "supplier_products", sp, 2000);
   log.push(`supplier_products: ${sp.length}`);
