@@ -279,39 +279,33 @@ async function runCore(supabase: any, startedAt: number) {
   // SUPPLIER_PRODUCTS
   const moqOptions = [1, 5, 10, 25, 50, 100, 250];
   const categorySupplierBias: Record<string, string[]> = {
-    PVC: ["Charlotte Pipe","Spears Mfg","NIBCO"],
+    PVC: ["Charlotte Pipe","Spears Mfg","Oatey"],
     copper: ["Mueller Industries","NIBCO"],
-    PEX: ["Uponor","Viega","SharkBite","Reliance Worldwide"],
+    PEX: ["Uponor","Viega","SharkBite","Reliance Worldwide","Cash Acme"],
     water_heaters: ["A.O. Smith","Bradford White","Rheem","Lochinvar","State Water Heaters","Navien","Noritz","Takagi","HTP"],
     HVAC_equipment: ["Carrier","Trane","Goodman","Daikin","Mitsubishi Electric","Fujitsu","LG HVAC"],
-    refrigerants: ["Honeywell","Emerson"],
-    controls: ["Honeywell","Resideo","Belimo","Siemens BT","Johnson Controls","Aprilaire"],
-    service_parts: ["Watts","Webstone","Cash Acme","McDonnell & Miller","Amtrol"],
-    fittings: ["NIBCO","Apollo Valves","Watts","Webstone","Charlotte Pipe","Mueller Industries"],
-    valves: ["Apollo Valves","Milwaukee Valve","Watts","NIBCO"],
+    refrigerants: ["Honeywell","Emerson","RectorSeal"],
+    controls: ["Resideo","Belimo","Siemens BT","Johnson Controls","Aprilaire"],
+    service_parts: ["Watts","Webstone","McDonnell & Miller","Amtrol","Taco","Grundfos","Burnham","Weil-McLain"],
+    fittings: ["Apollo Valves","Fernco","Zurn","Jay R. Smith","Caleffi"],
+    valves: ["Milwaukee Valve","Sloan","Wilkins"],
   };
   const supplierByName: Record<string, any> = {};
   suppliers.forEach((s: any) => (supplierByName[s.name] = s));
 
   const sp: any[] = [];
   for (const p of insertedProducts) {
-    const bias = categorySupplierBias[p.category] || [];
-    const pool: any[] = [];
-    for (const n of bias) if (supplierByName[n]) pool.push(supplierByName[n]);
-    while (pool.length < 3) pool.push(suppliers[Math.floor(rand() * suppliers.length)]);
-    const n = ri(1, 3);
-    const chosen = new Set<string>();
-    for (let i = 0; i < n; i++) {
-      const s = pool[ri(0, pool.length - 1)];
-      if (chosen.has(s.id)) continue;
-      chosen.add(s.id);
+    const pool = (categorySupplierBias[p.category] || [])
+      .map((n) => supplierByName[n])
+      .filter(Boolean);
+    if (pool.length === 0) throw new Error(`No supplier pool for ${p.category}`);
+    const s = pool[ri(0, pool.length - 1)];
       sp.push({
         supplier_id: s.id, product_id: p.id,
         supplier_sku: `${s.name.substring(0, 3).toUpperCase().replace(/\s/g, "")}-${p.sku}`,
         cost: Math.round(Number(p.unit_cost) * (0.92 + rand() * 0.13) * 100) / 100,
-        moq: pick(moqOptions), is_primary: i === 0,
+        moq: pick(moqOptions), is_primary: true,
       });
-    }
   }
   await chunkInsert(supabase, "supplier_products", sp, 2000);
   log.push(`supplier_products: ${sp.length}`);
@@ -446,7 +440,7 @@ async function runSales(supabase: any, offset: number, limit: number, startedAt:
   // instead of the alphabetical bias of SKU-prefixed pagination (which trapped
   // the first ~200 rows entirely in the `fittings` category).
   const { data: products } = await supabase.from("products")
-    .select("id, abc_class, seasonality_pattern, is_intermittent")
+    .select("id, category, abc_class, seasonality_pattern, is_intermittent")
     .order("id")
     .range(offset, offset + limit - 1)
     .throwOnError();
@@ -480,7 +474,21 @@ async function runSales(supabase: any, offset: number, limit: number, startedAt:
   }
 
   const lambdaByAbc: Record<string, () => number> = {
-    A: () => 5 + rand() * 15, B: () => 1 + rand() * 3, C: () => 0.1 + rand() * 0.5,
+    A: () => 0.8 + rand() * 2.4,
+    B: () => 0.25 + rand() * 0.9,
+    C: () => 0.03 + rand() * 0.18,
+  };
+  const categoryDemandMul: Record<string, number> = {
+    HVAC_equipment: 0.22,
+    water_heaters: 0.25,
+    refrigerants: 0.45,
+    PEX: 0.6,
+    controls: 0.65,
+    copper: 0.55,
+    PVC: 0.8,
+    service_parts: 0.85,
+    fittings: 1,
+    valves: 0.8,
   };
   // Smooth seasonal multiplier using a sinusoid centered on each pattern's peak month.
   // Avoids the hard month-boundary step the old version produced.
@@ -536,7 +544,7 @@ async function runSales(supabase: any, offset: number, limit: number, startedAt:
           if (buffer.length >= 4000) await flush();
           continue;
         }
-        let lambda = baseLambda * seasonMul(p.seasonality_pattern, day.getMonth()) * dowMul(day.getDay());
+        let lambda = baseLambda * (categoryDemandMul[p.category] ?? 0.7) * seasonMul(p.seasonality_pattern, day.getMonth()) * dowMul(day.getDay());
         // Per-day noise so the line isn't a perfectly smooth ribbon
         lambda *= 0.85 + rand() * 0.3;
         if (p.seasonality_pattern === "freeze_event") {
