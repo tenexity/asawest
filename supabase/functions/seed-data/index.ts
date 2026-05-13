@@ -474,7 +474,21 @@ async function runSales(supabase: any, offset: number, limit: number, startedAt:
   }
 
   const lambdaByAbc: Record<string, () => number> = {
-    A: () => 5 + rand() * 15, B: () => 1 + rand() * 3, C: () => 0.1 + rand() * 0.5,
+    A: () => 0.8 + rand() * 2.4,
+    B: () => 0.25 + rand() * 0.9,
+    C: () => 0.03 + rand() * 0.18,
+  };
+  const categoryDemandMul: Record<string, number> = {
+    HVAC_equipment: 0.22,
+    water_heaters: 0.25,
+    refrigerants: 0.45,
+    PEX: 0.6,
+    controls: 0.65,
+    copper: 0.55,
+    PVC: 0.8,
+    service_parts: 0.85,
+    fittings: 1,
+    valves: 0.8,
   };
   // Smooth seasonal multiplier using a sinusoid centered on each pattern's peak month.
   // Avoids the hard month-boundary step the old version produced.
@@ -530,7 +544,7 @@ async function runSales(supabase: any, offset: number, limit: number, startedAt:
           if (buffer.length >= 4000) await flush();
           continue;
         }
-        let lambda = baseLambda * seasonMul(p.seasonality_pattern, day.getMonth()) * dowMul(day.getDay());
+        let lambda = baseLambda * (categoryDemandMul[p.category] ?? 0.7) * seasonMul(p.seasonality_pattern, day.getMonth()) * dowMul(day.getDay());
         // Per-day noise so the line isn't a perfectly smooth ribbon
         lambda *= 0.85 + rand() * 0.3;
         if (p.seasonality_pattern === "freeze_event") {
