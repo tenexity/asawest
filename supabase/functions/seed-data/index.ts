@@ -440,7 +440,7 @@ async function runSales(supabase: any, offset: number, limit: number, startedAt:
   // instead of the alphabetical bias of SKU-prefixed pagination (which trapped
   // the first ~200 rows entirely in the `fittings` category).
   const { data: products } = await supabase.from("products")
-    .select("id, abc_class, seasonality_pattern, is_intermittent")
+    .select("id, category, abc_class, seasonality_pattern, is_intermittent")
     .order("id")
     .range(offset, offset + limit - 1)
     .throwOnError();
