@@ -153,21 +153,26 @@ Deno.serve(async (req) => {
       const isFreeze = product.seasonality_pattern === "freeze_event";
       if (isCooling || isHeating || isFreeze) avgDaily *= 2.5;
 
-      // Effective inflow: assume on_order arrives at lt+delay
+      // Day-by-day simulation. on_order arrives at lt+delay; units short = demand
+      // that can't be filled (true lost sales), not total horizon demand.
       const arrivalDay = lt + delay_days;
       let projected = inv.on_hand;
       let dayToBelowSS = -1;
       let dayToZero = -1;
+      let unitsShort = 0;
       for (let d = 1; d <= horizon; d++) {
-        projected -= avgDaily;
         if (d === arrivalDay) projected += inv.on_order;
+        const filled = Math.min(projected, avgDaily);
+        const lost = avgDaily - filled;
+        projected -= filled;
+        if (lost > 0) unitsShort += lost;
         if (projected < inv.safety_stock && dayToBelowSS < 0) dayToBelowSS = d;
         if (projected <= 0 && dayToZero < 0) dayToZero = d;
       }
 
       if (dayToBelowSS < 0) continue;
       const isStockout = dayToZero > 0;
-      const unitsShort = Math.max(0, Math.ceil(avgDaily * horizon - inv.on_hand - inv.on_order));
+      unitsShort = Math.ceil(unitsShort);
       const revenue = unitsShort * Number(product.unit_price ?? 0);
 
       if (isStockout) {
