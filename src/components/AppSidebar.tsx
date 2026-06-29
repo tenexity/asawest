@@ -9,7 +9,9 @@ import {
   Plug,
   Settings,
   Droplets,
+  Users as UsersIcon,
 } from "lucide-react";
+import { useUserRole } from "@/hooks/useUserRole";
 import {
   Sidebar,
   SidebarContent,
@@ -37,6 +39,10 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const { pathname } = useLocation();
+  const { isAdmin } = useUserRole();
+  const navItems = isAdmin
+    ? [...items, { title: "Users", url: "/users", icon: UsersIcon }]
+    : items;
 
   return (
     <Sidebar collapsible="icon">
@@ -54,7 +60,7 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => {
+              {navItems.map((item) => {
                 const active =
                   item.url === "/"
                     ? pathname === "/"
