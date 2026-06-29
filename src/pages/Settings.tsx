@@ -12,12 +12,14 @@ import { useDemo } from "@/contexts/DemoContext";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import { TIMING } from "@/lib/demo-script";
-import { Loader2, RotateCcw, Save, Play } from "lucide-react";
+import { Loader2, RotateCcw, Save, Play, Lock } from "lucide-react";
+import { useUserRole } from "@/hooks/useUserRole";
 
 type Scenario = { id: string; name: string; created_at: string };
 
 export default function Settings() {
   const { user } = useAuth();
+  const { isAdmin, loading: roleLoading } = useUserRole();
   const { demoMode, setDemoMode, lastResetAt, setLastResetAt, setResetHandler } = useDemo();
   const [resetting, setResetting] = useState(false);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
