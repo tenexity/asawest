@@ -101,26 +101,32 @@ export default function Settings() {
               Wipes all dynamic data and replants the original problem states. Shortcut: R
               {lastResetAt && <span className="block mt-1">Last reset: {new Date(lastResetAt).toLocaleString()}</span>}
             </div>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="lg" disabled={resetting}>
-                  {resetting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-2" />}
-                  Reset to Clean Demo State
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Reset all dynamic data?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will truncate sales, inventory, POs, insights, transfers, recommendations, and chats — then re-seed the planted problem states (50 at-risk, 20 stockouts, 100 excess, 5 late POs).
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleReset}>Reset</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            {!isAdmin && !roleLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground border rounded p-3 bg-muted/30">
+                <Lock className="h-4 w-4" /> Read-only access — only admins can reset the demo.
+              </div>
+            ) : (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="lg" disabled={resetting}>
+                    {resetting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-2" />}
+                    Reset to Clean Demo State
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Reset all dynamic data?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will truncate sales, inventory, POs, insights, transfers, recommendations, and chats — then re-seed the planted problem states (50 at-risk, 20 stockouts, 100 excess, 5 late POs).
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleReset}>Reset</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -128,26 +134,34 @@ export default function Settings() {
       <Card>
         <CardHeader><CardTitle className="text-lg">Scenario Snapshots</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <Input placeholder="Snapshot name (optional)" value={snapName} onChange={(e) => setSnapName(e.target.value)} />
-            <Button onClick={saveSnapshot} disabled={busy}>
-              <Save className="h-4 w-4 mr-2" /> Save current state
-            </Button>
-          </div>
-          <div className="space-y-2">
-            {scenarios.length === 0 && <p className="text-sm text-muted-foreground">No snapshots yet.</p>}
-            {scenarios.map((s) => (
-              <div key={s.id} className="flex items-center justify-between border rounded p-2">
-                <div>
-                  <div className="text-sm font-medium">{s.name}</div>
-                  <div className="text-xs text-muted-foreground">{new Date(s.created_at).toLocaleString()}</div>
-                </div>
-                <Button size="sm" variant="outline" onClick={() => restoreSnapshot(s.id)} disabled={busy}>
-                  <Play className="h-3 w-3 mr-1" /> Restore
+          {!isAdmin && !roleLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground border rounded p-3 bg-muted/30">
+              <Lock className="h-4 w-4" /> Read-only access — snapshots can only be saved or restored by admins.
+            </div>
+          ) : (
+            <>
+              <div className="flex gap-2">
+                <Input placeholder="Snapshot name (optional)" value={snapName} onChange={(e) => setSnapName(e.target.value)} />
+                <Button onClick={saveSnapshot} disabled={busy}>
+                  <Save className="h-4 w-4 mr-2" /> Save current state
                 </Button>
               </div>
-            ))}
-          </div>
+              <div className="space-y-2">
+                {scenarios.length === 0 && <p className="text-sm text-muted-foreground">No snapshots yet.</p>}
+                {scenarios.map((s) => (
+                  <div key={s.id} className="flex items-center justify-between border rounded p-2">
+                    <div>
+                      <div className="text-sm font-medium">{s.name}</div>
+                      <div className="text-xs text-muted-foreground">{new Date(s.created_at).toLocaleString()}</div>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => restoreSnapshot(s.id)} disabled={busy}>
+                      <Play className="h-3 w-3 mr-1" /> Restore
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
