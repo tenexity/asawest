@@ -270,6 +270,33 @@ export type Database = {
           },
         ]
       }
+      invitations: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          email: string
+          id: string
+          invited_by: string | null
+          role: Database["public"]["Enums"]["app_role"]
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          invited_by?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          invited_by?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+        }
+        Relationships: []
+      }
       markdown_candidates: {
         Row: {
           branch_id: string
@@ -751,6 +778,27 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_settings: {
         Row: {
           demo_mode: boolean
@@ -777,13 +825,41 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_list_users: {
+        Args: never
+        Returns: {
+          created_at: string
+          email: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }[]
+      }
+      admin_set_user_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: undefined
+      }
+      current_user_role: {
+        Args: never
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
       dashboard_summary: { Args: { p_branch_id?: string }; Returns: Json }
       exec_readonly_sql: { Args: { query: string }; Returns: Json }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       network_graph_data: { Args: never; Returns: Json }
       skus_overview: { Args: { p_branch_id?: string }; Returns: Json }
     }
     Enums: {
       abc_class: "A" | "B" | "C"
+      app_role: "admin" | "viewer"
       climate_zone: "cold" | "temperate" | "hot" | "freeze_prone"
       customer_type:
         | "contractor"
@@ -949,6 +1025,7 @@ export const Constants = {
   public: {
     Enums: {
       abc_class: ["A", "B", "C"],
+      app_role: ["admin", "viewer"],
       climate_zone: ["cold", "temperate", "hot", "freeze_prone"],
       customer_type: [
         "contractor",
