@@ -99,6 +99,7 @@ function KpiCard({
   color,
   hint,
   to,
+  tourId,
 }: {
   label: string;
   value: string;
