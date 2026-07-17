@@ -238,7 +238,8 @@ export default function Dashboard() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3" data-tour="kpi-grid">
+        <div data-tour="kpi-fill-rate" className="contents">
         <KpiCard
           label="Fill Rate"
           value={`${fillRateLive.toFixed(1)}%`}
@@ -248,6 +249,7 @@ export default function Dashboard() {
           hint="Active SKUs moving daily"
           to="/agents?type=stockout_risk"
         />
+        </div>
         <KpiCard
           label="Active Stockouts"
           value={fmtNum(stockoutPairs.length)}
@@ -268,6 +270,7 @@ export default function Dashboard() {
           hint="On-hand × cost"
           to="/skus"
         />
+        <div data-tour="kpi-dead-stock" className="contents">
         <KpiCard
           label="Dead Stock"
           value={fmtCurrency(deadStockValue)}
@@ -277,6 +280,7 @@ export default function Dashboard() {
           hint={`${deadStockPct.toFixed(1)}% of inventory · 0 sales 90d`}
           to="/skus?filter=dead"
         />
+        </div>
         <KpiCard
           label="Avg Days of Supply"
           value={avgDos.toFixed(0)}

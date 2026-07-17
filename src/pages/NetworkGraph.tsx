@@ -440,7 +440,7 @@ export default function NetworkGraph() {
       </Card>
 
       {/* Graph */}
-      <div className="h-[560px] border rounded-lg bg-card">
+      <div className="h-[560px] border rounded-lg bg-card" data-tour="network-canvas">
         {loading ? (
           <Skeleton className="h-full w-full" />
         ) : (
@@ -465,7 +465,7 @@ export default function NetworkGraph() {
       </div>
 
       {/* Simulator */}
-      <Card className="border-t-4 border-t-destructive">
+      <Card className="border-t-4 border-t-destructive" data-tour="disruption-simulator">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-destructive" />

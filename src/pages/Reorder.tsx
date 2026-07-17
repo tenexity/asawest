@@ -285,7 +285,7 @@ export default function Reorder() {
       </Card>
 
       {/* Table */}
-      <Card className="p-0 overflow-hidden">
+      <Card className="p-0 overflow-hidden" data-tour="reorder-table">
         <div className="max-h-[calc(100vh-360px)] overflow-auto">
           <Table>
             <TableHeader className="sticky top-0 bg-background z-10">
