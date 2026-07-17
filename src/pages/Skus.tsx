@@ -233,7 +233,7 @@ export default function Skus() {
             <SelectItem value="Z">Lumpy</SelectItem>
           </SelectContent>
         </Select>
-        <div className="flex items-center gap-2 ml-auto px-2">
+        <div className="flex items-center gap-2 ml-auto px-2" data-tour="filter-dead-stock">
           <Switch
             id="dead"
             checked={deadOnly}

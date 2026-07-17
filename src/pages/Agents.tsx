@@ -174,7 +174,7 @@ export default function Agents() {
   }, [insights]);
 
   return (
-    <div className="grid grid-cols-[1fr_280px] gap-6">
+    <div className="grid grid-cols-[1fr_280px] gap-6" data-tour="agents-panel">
       <div className="space-y-6">
         <div className="flex items-center justify-between gap-4">
           <div>

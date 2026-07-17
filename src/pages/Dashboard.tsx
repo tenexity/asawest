@@ -99,6 +99,7 @@ function KpiCard({
   color,
   hint,
   to,
+  tourId,
 }: {
   label: string;
   value: string;
@@ -108,6 +109,7 @@ function KpiCard({
   color: string;
   hint?: string;
   to?: string;
+  tourId?: string;
 }) {
   const inner = (
     <Card
@@ -115,6 +117,7 @@ function KpiCard({
         "p-4 h-full",
         to && "transition-all hover:shadow-md hover:border-primary/40 cursor-pointer group",
       )}
+      data-tour={tourId}
     >
       <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide flex items-center justify-between">
         <span>{label}</span>
@@ -240,6 +243,7 @@ export default function Dashboard() {
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
         <KpiCard
+          tourId="kpi-fill-rate"
           label="Fill Rate"
           value={`${fillRateLive.toFixed(1)}%`}
           delta={fillDeltaPct}
@@ -269,6 +273,7 @@ export default function Dashboard() {
           to="/skus"
         />
         <KpiCard
+          tourId="kpi-dead-stock"
           label="Dead Stock"
           value={fmtCurrency(deadStockValue)}
           delta={0}

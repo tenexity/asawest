@@ -400,7 +400,7 @@ export default function SkuDetail() {
       </Card>
 
       {/* Forecast model comparison */}
-      <Card className="p-4">
+      <Card className="p-4" data-tour="forecast-tournament">
         <div className="flex items-center justify-between mb-3">
           <div>
             <h2 className="font-semibold inline-flex items-center gap-2">

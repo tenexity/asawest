@@ -158,7 +158,7 @@ export default function Chat() {
           </div>
         </ScrollArea>
 
-        <div className="border-t p-3 flex gap-2">
+        <div className="border-t p-3 flex gap-2" data-tour="chat-input">
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
