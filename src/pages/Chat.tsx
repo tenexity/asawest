@@ -133,13 +133,14 @@ export default function Chat() {
             {messages.length === 0 && (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">Try one of these:</p>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2" data-tour="chat-suggestions">
                   {STARTERS.map((s) => (
                     <button key={s} onClick={() => send(s)} className="text-xs px-3 py-2 rounded-full border bg-background hover:bg-accent transition-colors text-left">
                       {s}
                     </button>
                   ))}
                 </div>
+
               </div>
             )}
             {messages.map((m, i) => (
