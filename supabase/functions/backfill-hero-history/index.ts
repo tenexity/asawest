@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
           sale_date: iso,
           quantity: q,
           customer_type: customerTypes[Math.floor(rand() * customerTypes.length)],
-          sale_price: 0, // populated by DB default / not required for demo
+          is_will_call: rand() < 0.25,
         });
       }
     }
