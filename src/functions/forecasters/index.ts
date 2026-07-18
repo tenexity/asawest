@@ -31,19 +31,18 @@ export function exponentialSmoothing(
   if (n < 4)
     return { name: "Exponential Smoothing", forecast: [], applicable: false, reason: "Not enough history" };
 
-  // If we don't have enough history for the full annual season, fall back
-  // to a shorter cycle so trend + seasonality still show up on the chart.
-  const m = Math.min(season, Math.max(4, Math.floor(n / 2)));
+  // Prefer the full annual cycle whenever we have at least one year of
+  // history; only fall back to a shorter cycle for very short series.
+  const m = n >= season ? season : Math.max(4, Math.floor(n / 2));
 
-  // Seed level = mean of first cycle; trend = avg slope across first two cycles;
-  // seasonals = first-cycle deviations from the seed level.
+  // Seed level = mean of first cycle; trend = slope between first and last
+  // cycle means; seasonals = first-cycle deviations from the seed level.
   const seed = history.slice(0, m);
   let level = seed.reduce((a, b) => a + b, 0) / m;
-  const nextSeed = history.slice(m, Math.min(n, 2 * m));
-  const nextMean = nextSeed.length
-    ? nextSeed.reduce((a, b) => a + b, 0) / nextSeed.length
-    : level;
-  let trend = (nextMean - level) / m;
+  const lastCycle = history.slice(-m);
+  const lastMean = lastCycle.reduce((a, b) => a + b, 0) / lastCycle.length;
+  const cycles = Math.max(1, Math.floor(n / m));
+  let trend = cycles > 1 ? (lastMean - level) / ((cycles - 1) * m) : 0;
   const seasonals = seed.map((v) => v - level);
 
   for (let i = 0; i < n; i++) {
@@ -54,6 +53,14 @@ export function exponentialSmoothing(
     seasonals[i % m] = gamma * (history[i] - level) + (1 - gamma) * s;
   }
 
+  // Anchor the forecast to the recent-year average so the projection sits
+  // in the same range as history. Without this, additive smoothing on a
+  // series with big seasonal swings can settle far below the recent mean.
+  const seasonalMean =
+    seasonals.reduce((a, b) => a + b, 0) / seasonals.length;
+  const anchor = lastMean - seasonalMean;
+  level = 0.5 * level + 0.5 * anchor;
+
   const forecast: number[] = [];
   for (let h = 1; h <= horizon; h++) {
     const s = seasonals[(n + h - 1) % m];
@@ -61,6 +68,7 @@ export function exponentialSmoothing(
   }
   return { name: "Exponential Smoothing", forecast, applicable: true };
 }
+
 
 // Croston's method for intermittent demand
 export function croston(history: number[], horizon = 13, alpha = 0.1): ForecastResult {
