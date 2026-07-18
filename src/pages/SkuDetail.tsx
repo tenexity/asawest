@@ -470,10 +470,16 @@ export default function SkuDetail() {
               <Sparkles className="h-4 w-4" /> Why this winner?
             </h3>
             {!explanation && !explainLoading && (
-              <Button size="sm" variant="ghost" onClick={() => recomputeAndExplain(true)}>
+              <Button
+                size="sm"
+                variant="ghost"
+                data-tour="explain-btn"
+                onClick={() => recomputeAndExplain(true)}
+              >
                 Generate explanation
               </Button>
             )}
+
           </div>
           {explainLoading ? (
             <p className="text-sm text-muted-foreground">Asking the analyst…</p>
