@@ -299,14 +299,18 @@ export default function Dashboard() {
           spark={cogsSpark}
           color={turns >= 4 ? successColor : turns >= 2 ? warningColor : dangerColor}
           hint="Annualized, last 90d"
+          to="/balance"
         />
+
       </div>
 
       {/* Branch comparison */}
       <Card className="p-0 overflow-hidden" data-tour="branch-comparison">
-
-        <div className="px-4 py-3 border-b">
+        <div className="px-4 py-3 border-b flex items-center justify-between">
           <h2 className="font-semibold">Branch Comparison</h2>
+          <Link to="/network" className="text-xs text-primary hover:underline">
+            View network graph →
+          </Link>
         </div>
         <Table>
           <TableHeader>
@@ -328,8 +332,20 @@ export default function Dashboard() {
               </TableRow>
             )}
             {branchRows.map((r) => (
-              <TableRow key={r.id}>
-                <TableCell className="font-medium">{r.name}</TableCell>
+              <TableRow
+                key={r.id}
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => (window.location.href = `/skus?branch=${r.id}`)}
+              >
+                <TableCell className="font-medium">
+                  <Link
+                    to={`/skus?branch=${r.id}`}
+                    className="hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {r.name}
+                  </Link>
+                </TableCell>
                 <TableCell
                   className={cn(
                     "text-right tabular-nums",
@@ -356,10 +372,16 @@ export default function Dashboard() {
         </Table>
       </Card>
 
+
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <Card className="p-4">
-          <h2 className="font-semibold mb-3">30-day Daily Demand (units)</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold">30-day Daily Demand (units)</h2>
+            <Link to="/ask" className="text-xs text-primary hover:underline">
+              Ask AI about trends →
+            </Link>
+          </div>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={demandSpark}>
@@ -373,11 +395,16 @@ export default function Dashboard() {
           </div>
         </Card>
         <Card className="p-0 overflow-hidden">
-          <div className="px-4 py-3 border-b">
-            <h2 className="font-semibold">Top 10 Problem SKUs</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Ranked by reason and financial impact
-            </p>
+          <div className="px-4 py-3 border-b flex items-center justify-between">
+            <div>
+              <h2 className="font-semibold">Top 10 Problem SKUs</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Ranked by reason and financial impact
+              </p>
+            </div>
+            <Link to="/reorder" className="text-xs text-primary hover:underline shrink-0">
+              Open reorder plan →
+            </Link>
           </div>
           <div className="h-[232px] overflow-auto">
             {problems.length === 0 ? (
@@ -404,8 +431,14 @@ export default function Dashboard() {
                         : p.reason === "Below ROP"
                         ? "bg-warning/15 text-warning"
                         : "bg-muted text-muted-foreground";
+                    const target =
+                      p.reason === "Excess" ? "/balance" : `/skus/${encodeURIComponent(p.sku)}`;
                     return (
-                      <TableRow key={`${p.sku}-${p.reason}`}>
+                      <TableRow
+                        key={`${p.sku}-${p.reason}`}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => (window.location.href = target)}
+                      >
                         <TableCell className="font-mono text-xs">
                           <div className="font-medium">{p.sku}</div>
                           <div className="text-[10px] text-muted-foreground truncate max-w-[180px]">
@@ -435,6 +468,7 @@ export default function Dashboard() {
             )}
           </div>
         </Card>
+
       </div>
     </div>
   );
