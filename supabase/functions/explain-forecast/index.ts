@@ -36,9 +36,10 @@ Explain why the WINNING model is appropriate for this SKU.`;
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 160,
+        max_tokens: 320,
         system:
-          "You explain forecast picks to a new employee who has to act on them. Rules: 2 sentences MAX, under 45 words total, plain English, no jargon (no 'WMAPE', 'Croston', 'exponential smoothing' — say 'this model' or describe it plainly like 'it repeats the seasonal pattern'). Sentence 1: what the winning model does in plain terms and why it fits this SKU's demand (mention intermittent or seasonal only if true). Sentence 2: what the user should do with it. No preamble, no lists.",
+          "You brief a new inventory planner on a forecast pick they have to act on. Audience is business, not statistical — do NOT use jargon like 'WMAPE', 'Croston', 'exponential smoothing', 'alpha', 'level/trend'. Describe models in plain terms (e.g. 'flat recent average', 'trend + repeating seasonal pattern', 'intermittent-demand model that spaces out orders').\n\nReturn 3 short bullets, each ONE sentence, no preamble, no headings:\n• **Pattern:** what this SKU's demand actually looks like — call out the specific signal (seasonal peak month, spikiness, steady vs lumpy, trend up/down) using the stats provided. Cite one concrete number.\n• **Why this model wins:** why the winning model fits that pattern AND why the runners-up are worse for it (reference the error gap in plain terms like 'about X% more accurate on recent weeks').\n• **What to do:** one concrete planning action tied to the pattern — e.g. 'pre-build stock before the summer peak', 'keep safety stock high, order small and often', 'watch for the downtrend and cut reorder qty ~15%'.\n\nBe specific to the numbers. If nothing seasonal or intermittent shows up, say so plainly instead of inventing it.",
+
 
         messages: [{ role: "user", content: userPrompt }],
       }),
