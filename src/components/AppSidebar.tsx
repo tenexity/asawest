@@ -54,7 +54,10 @@ export function AppSidebar() {
             <Droplets className="h-4 w-4" />
           </div>
           {!collapsed && (
-            <div className="font-semibold tracking-tight">Inventory Forecaster</div>
+            <div className="font-semibold tracking-tight leading-tight text-sm">
+              <div>Inventory</div>
+              <div>Forecaster</div>
+            </div>
           )}
         </div>
       </SidebarHeader>
