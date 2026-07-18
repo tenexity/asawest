@@ -5,27 +5,32 @@ import { ensureDemoHero } from "./ensureDemoHero";
 import { TourOverlay } from "./TourOverlay";
 
 const SEEN_KEY = "inv-forecaster.tour.seen.v1";
+const PROGRESS_KEY = "inv-forecaster.tour.progress.v1";
 
 type Ctx = {
   active: boolean;
   stepIndex: number;
   start: () => void;
+  resume: () => void;
   stop: () => void;
   next: () => void;
   prev: () => void;
   goTo: (i: number) => void;
   hasSeen: boolean;
+  savedStep: number | null;
 };
 
 const TourContext = createContext<Ctx>({
   active: false,
   stepIndex: 0,
   start: () => {},
+  resume: () => {},
   stop: () => {},
   next: () => {},
   prev: () => {},
   goTo: () => {},
   hasSeen: false,
+  savedStep: null,
 });
 
 export function TourProvider({ children }: { children: ReactNode }) {
