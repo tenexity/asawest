@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useBranch } from "@/contexts/BranchContext";
 import { Card } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Scale, Sparkles, Loader2, Download, CheckCircle2, ArrowRight, ArrowLeft } from "lucide-react";
+import { Scale, Sparkles, Loader2, Download, CheckCircle2, ArrowRight, ArrowLeft, RefreshCw } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -54,40 +54,80 @@ const priorityColor: Record<Redeploy["priority_label"], string> = {
   "Trending up":"bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/30",
 };
 
+type CacheEntry = { releases: Release[]; redeploys: Redeploy[]; totals: Totals | null; ts: number };
+const balanceCache: Record<string, CacheEntry> = {};
+
+function formatAge(ts: number): string {
+  const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  return `${h}h ago`;
+}
+
 export default function Balance() {
   const { branchId } = useBranch();
-  const [loading, setLoading] = useState(true);
-  const [releases, setReleases] = useState<Release[]>([]);
-  const [redeploys, setRedeploys] = useState<Redeploy[]>([]);
-  const [totals, setTotals] = useState<Totals | null>(null);
+  const cacheKey = branchId ?? "all";
+  const cached = balanceCache[cacheKey];
+  const [loading, setLoading] = useState(!cached);
+  const [releases, setReleases] = useState<Release[]>(cached?.releases ?? []);
+  const [redeploys, setRedeploys] = useState<Redeploy[]>(cached?.redeploys ?? []);
+  const [totals, setTotals] = useState<Totals | null>(cached?.totals ?? null);
+  const [lastUpdated, setLastUpdated] = useState<number | null>(cached?.ts ?? null);
   const [plan, setPlan] = useState<string>("");
   const [planLoading, setPlanLoading] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [, setNowTick] = useState(0);
+
+  // Tick every 30s so "updated Xm ago" refreshes.
+  useEffect(() => {
+    const id = setInterval(() => setNowTick((n) => n + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const loadData = useCallback(async (force: boolean) => {
+    const key = branchId ?? "all";
+    const existing = balanceCache[key];
+    if (!force && existing) {
+      setReleases(existing.releases);
+      setRedeploys(existing.redeploys);
+      setTotals(existing.totals);
+      setLastUpdated(existing.ts);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const { data, error } = await supabase.rpc("sku_balance_plan" as any, {
+      p_branch_id: branchId === "all" ? null : branchId,
+    });
+    if (error) {
+      console.error(error);
+      toast.error("Failed to load rebalance data");
+      setLoading(false);
+      return;
+    }
+    const d = (data ?? {}) as any;
+    const entry: CacheEntry = {
+      releases: (d.releases ?? []) as Release[],
+      redeploys: (d.redeploys ?? []) as Redeploy[],
+      totals: (d.totals ?? null) as Totals | null,
+      ts: Date.now(),
+    };
+    balanceCache[key] = entry;
+    setReleases(entry.releases);
+    setRedeploys(entry.redeploys);
+    setTotals(entry.totals);
+    setLastUpdated(entry.ts);
+    setLoading(false);
+  }, [branchId]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setPlan("");
-      const { data, error } = await supabase.rpc("sku_balance_plan" as any, {
-        p_branch_id: branchId === "all" ? null : branchId,
-      });
-      if (cancelled) return;
-      if (error) {
-        console.error(error);
-        toast.error("Failed to load rebalance data");
-        setLoading(false);
-        return;
-      }
-      const d = (data ?? {}) as any;
-      setReleases((d.releases ?? []) as Release[]);
-      setRedeploys((d.redeploys ?? []) as Redeploy[]);
-      setTotals((d.totals ?? null) as Totals | null);
-      setLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, [branchId]);
+    setPlan("");
+    void loadData(false);
+  }, [loadData]);
+
 
   const netFreed = useMemo(
     () => Math.max((totals?.cash_freed ?? 0) - (totals?.cash_needed ?? 0), 0),
@@ -243,6 +283,17 @@ export default function Balance() {
         </Card>
       </div>
 
+      {/* Loading banner */}
+      {loading && (
+        <Card className="p-3 flex items-center gap-3 border-primary/30 bg-primary/5">
+          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+          <div className="text-sm">
+            Crunching excess stock and stockout risk across the network…
+            <span className="text-muted-foreground"> This can take 10–20 seconds on first load.</span>
+          </div>
+        </Card>
+      )}
+
       {/* Actions */}
       <div className="flex flex-wrap items-center gap-2">
         <Button
@@ -257,6 +308,21 @@ export default function Balance() {
           <Download className="h-4 w-4 mr-2" /> Export CSV
         </Button>
         <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => loadData(true)}
+          disabled={loading}
+          title="Recompute from the latest data"
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
+        {lastUpdated && (
+          <span className="text-xs text-muted-foreground">
+            Updated {formatAge(lastUpdated)}
+          </span>
+        )}
+        <Button
           variant="default"
           className="ml-auto"
           onClick={() => setConfirmOpen(true)}
@@ -265,6 +331,7 @@ export default function Balance() {
           <CheckCircle2 className="h-4 w-4 mr-2" /> Approve Plan
         </Button>
       </div>
+
 
       {plan && (
         <Card className="p-5 border-primary/30 bg-primary/5">
