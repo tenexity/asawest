@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import ReactMarkdown from "react-markdown";
+
 import { Link, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -473,15 +475,20 @@ export default function SkuDetail() {
               </Button>
             )}
           </div>
-          <p className="text-sm text-muted-foreground">
-            {explainLoading
-              ? "Asking the analyst…"
-              : explanation
-              ? explanation
-              : tournament.winner
-              ? `Click "Generate explanation" for an analyst note on why ${tournament.winner.name} fits this SKU.`
-              : "No applicable model — not enough history."}
-          </p>
+          {explainLoading ? (
+            <p className="text-sm text-muted-foreground">Asking the analyst…</p>
+          ) : explanation ? (
+            <div className="prose prose-sm dark:prose-invert max-w-none text-sm [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0.5 [&_p]:my-1">
+              <ReactMarkdown>{explanation}</ReactMarkdown>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {tournament.winner
+                ? `Click "Generate explanation" for an analyst note on why ${tournament.winner.name} fits this SKU.`
+                : "No applicable model — not enough history."}
+            </p>
+          )}
+
         </div>
       </Card>
     </div>
