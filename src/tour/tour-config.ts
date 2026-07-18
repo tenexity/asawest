@@ -15,8 +15,20 @@ export type TourCtx = {
 };
 
 export const TOUR_STEPS: TourStep[] = [
+  // ── 0. Welcome ──────────────────────────────────────────────────
+  {
+    id: "welcome",
+    group: 1,
+    route: "/",
+    title: "Welcome — you're in control of this tour",
+    body: "You can exit this tour at any time by pressing Esc or clicking Skip. When you come back, the red button in the sidebar will read \"Resume tour\" and drop you right back where you left off. Feel free to click around between steps — nothing here is destructive.",
+    why: "Take your time. The tour is a guide, not a rail — explore any screen as deeply as you want and pick the tour back up whenever you're ready.",
+    placement: "center",
+  },
+
   // ── 1. Dashboard ────────────────────────────────────────────────
   {
+
     id: "dashboard-deadstock",
     group: 1,
     route: "/",
