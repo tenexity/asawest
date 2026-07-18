@@ -1,92 +1,90 @@
-# Data Foundation: Plumbing/HVAC Distributor Inventory
+# SKU Balance — Recommendation & Build Plan
 
-Build the database schema and realistic seed data on Lovable Cloud. No UI in this step.
+## Recommendation
 
-## 1. Enable Lovable Cloud
+Yes, build this. It's a natural fit and directly monetizes the two KPIs already on the Dashboard (**Dead Stock** and **Stockouts**). Rather than bury it in a modal, add it as a **top-level sidebar page** called **SKU Balance** — it deserves its own real estate because it produces a *decision artifact* (a rebalance plan) that a buyer will export, share, and act on. A modal would feel like an afterthought.
 
-Provision the backend so Postgres + edge functions are available.
+The concept: the app already knows which SKUs are excess ($ tied up, no movement) and which are chronic stockouts (lost sales, high velocity). SKU Balance turns that into a single working-capital play: **"Free $X by clearing these 20 dead SKUs → redeploy into these 15 fast movers → net margin lift $Y."**
 
-## 2. Schema (migration)
+## Where it lives
 
-Create the following tables with the exact columns you listed. Notes:
+- New sidebar entry **SKU Balance** (icon: `Scale` from lucide) between *Reorder Recommendations* and *Network Graph*.
+- Route: `/balance`.
+- Deep-link target from the Dashboard **Dead Stock** KPI (currently goes to `/skus?filter=dead`) gets a secondary "Build rebalance plan →" link.
 
-- All `id` fields: `uuid` primary keys with `gen_random_uuid()` default.
-- `branches.climate_zone`, `products.category`, `products.seasonality_pattern`, `products.abc_class`, `products.xyz_class`, `sales_history.customer_type`, `purchase_orders.status`, `customers.type` → Postgres enums.
-- `products.substitute_product_id` → self-referencing nullable FK.
-- `supplier_products` → composite PK `(supplier_id, product_id)`.
-- `inventory_levels` → composite PK `(branch_id, product_id)`.
-- Add indexes: `sales_history(product_id, sale_date)`, `sales_history(branch_id, sale_date)`, `inventory_levels(branch_id)`, `purchase_orders(status)`, `products(category)`, `products(sku)` unique.
-- Enable RLS on every table. Since there is no auth yet and this is internal seed data, add a permissive `SELECT` policy for `anon` + `authenticated` so the future UI can read. Writes restricted to service role (seeding runs server-side).
+## Page layout
 
-## 3. Seeding strategy
+```text
+┌─ SKU Balance ────────────────────────────────────────────────┐
+│  Capital tied up in dead stock: $322k                        │
+│  Capital needed to fix top stockouts: $189k                  │
+│  Net freed working capital: $133k     Est. margin lift: $47k │
+├──────────────────────────┬───────────────────────────────────┤
+│ RELEASE (excess → cash)  │ REDEPLOY (cash → fast movers)     │
+│ ┌──────────────────────┐ │ ┌───────────────────────────────┐ │
+│ │ SKU | Br | Qty | $   │ │ │ SKU | Br | Short | Need $     │ │
+│ │ ...  (top 20)        │ │ │ ...  (top 20)                 │ │
+│ └──────────────────────┘ │ └───────────────────────────────┘ │
+│  Disposition per row:    │  Priority per row:                │
+│   • Return to supplier   │   • Critical (stockout now)       │
+│   • Bundle w/ fast mover │   • Below ROP                     │
+│   • Markdown 20-40%      │   • Trending up                   │
+│   • Transfer to branch X │                                   │
+├──────────────────────────┴───────────────────────────────────┤
+│  [ Generate AI Rebalance Plan ]   [ Export CSV ]  [ Approve ]│
+└──────────────────────────────────────────────────────────────┘
+```
 
-Seed via a one-shot Supabase **edge function** (`seed-data`) invoked once. Reasoning: 10k products + ~18 months of daily sales = hundreds of thousands of rows; a SQL migration is the wrong tool, and client-side seeding is too slow/insecure. The function uses the service role key and batches inserts (`COPY`-style via `insert()` chunks of 1–5k rows).
+## How disposition is chosen (rules, not ML)
 
-### Branches (5)
-Atlanta GA (freeze_prone), Charlotte NC (temperate), Phoenix AZ (hot), Dallas TX (freeze_prone — your spec says freeze_prone+hot but enum is single-value; we'll pick `freeze_prone` and note Dallas in name/state), Nashville TN (freeze_prone). Realistic opened_dates spanning 1985–2015.
+For each excess SKU:
+1. If another branch has it below reorder point → **Transfer** (highest recovery, no discount).
+2. Else if the supplier accepts returns (flag on `suppliers`) and qty × cost > $500 → **Return to supplier** (assume 85% recovery).
+3. Else if there's a fast-moving SKU in the same category → **Bundle** (assume 100% recovery, moves paired stock).
+4. Else → **Markdown 25%** (assume 75% recovery).
 
-### Suppliers (~50)
-Named list: Charlotte Pipe, Mueller Industries, Uponor, Viega, Rheem, Carrier, Trane, Goodman, Honeywell, Watts, Sloan, A.O. Smith, Bradford White, Lochinvar, Taco, Grundfos. Plus ~34 plausible smaller names (e.g., NIBCO, Apollo Valves, Spears Mfg, Oatey, RectorSeal, Fernco, Milwaukee Valve, Zurn, Jay R. Smith, Webstone, Caleffi, Wilkins, Reliance Worldwide, SharkBite, Cash Acme, McDonnell & Miller, Amtrol, Burnham, Weil-McLain, Navien, Noritz, Takagi, State Water Heaters, HTP, Fujitsu, Mitsubishi Electric, Daikin, LG HVAC, Emerson, Johnson Controls, Belimo, Siemens BT, Resideo, Aprilaire). Lead times 3–45 days; reliability 0.65–0.99; rebate flag ~40% true.
+For each stockout SKU, priority = `days_since_stockout × avg_daily_demand × unit_margin`.
 
-### Products (10,000)
-SKU generator per category:
-- Fittings (3,000): `CP-{size}-{angle}-{material}` e.g. `CP-4-90L-PVC`, `CP-2-T-CU`.
-- PVC pipe (1,500): `PVC-{schedule}-{size}-{length}` e.g. `PVC-40-2-10`.
-- Copper (1,000): `CU-{type}-{size}-{length}` e.g. `CU-L-3/4-20`.
-- PEX (1,000): `PEX-{size}-{length}{color}` e.g. `PEX-1-100R`.
-- Water heaters (800): `WH-{fuel}-{gallons}-{brand}` e.g. `WH-GAS-50-AOS`.
-- HVAC equipment (700): `HVAC-{type}-{tons}-{seer}` e.g. `HVAC-AC-3-16`.
-- Refrigerants (500): `RFG-{type}-{lbs}` e.g. `RFG-410A-25`, `RFG-32-25`, `RFG-454B-25`. R-410A SKUs get `is_phase_down=true` and `substitute_product_id` linked to a matching R-32 or R-454B SKU (two-pass insert).
-- Controls (500): `CTL-{type}-{model}` e.g. `CTL-TSTAT-T6`.
-- Service parts (1,000): `SP-{system}-{part}-{model}` e.g. `SP-WH-ANODE-AOS50`. Marked `is_intermittent=true` for ~80% of these.
+The pairing is a simple greedy match: sort releases by recoverable $ desc, sort redeploys by priority desc, walk down and allocate.
 
-ABC class distribution: 20% A / 30% B / 50% C. XYZ: 30% X / 40% Y / 30% Z. Seasonality assigned by category (e.g. refrigerants & HVAC equipment → cooling_peak, water heaters & boilers → heating_peak, PEX/insulation/hydrants → freeze_event, fittings → none). Costs $0.50–$8,000; price = cost × (1.18–1.45).
+## AI layer
 
-### supplier_products
-Each product gets 1–3 suppliers. One marked `is_primary=true`. Cost ≈ product.unit_cost × (0.92–1.05). MOQ from a realistic set {1, 5, 10, 25, 50, 100, 250}.
+A **Generate AI Rebalance Plan** button (mirrors the *Generate Explanation* pattern in SKU Detail) calls a new `rebalance-plan` edge function. It sends the top 20 releases + top 20 redeploys to Lovable AI and gets back a 3-bullet narrative:
+- **The play** — one sentence, dollars in / dollars out / net lift.
+- **Why now** — the 2-3 SKUs driving most of the value.
+- **First move this week** — the single highest-ROI action.
 
-### sales_history (18 months daily)
-Per-branch, per-product demand model:
-- Steady movers: Poisson(λ) where λ scales with ABC class (A: 5–20/day, B: 1–4, C: 0.1–0.6).
-- cooling_peak: ×3–5 multiplier on May–Aug; near-zero off-season.
-- heating_peak: ×3–5 multiplier on Nov–Feb.
-- freeze_event: baseline near zero; pick 2–4 random weeks Dec–Feb per freeze_prone branch and apply ×5–10 spike (only Atlanta, Dallas, Nashville).
-- Intermittent (Croston): on each day, p(demand)=0.2–0.3, when fires draw uniform 1–5.
-- customer_type weighted: 65% contractor, 25% walk_in, 10% project. `is_will_call` ~40% for contractors.
+Rendered with `react-markdown` like the forecast explanation.
 
-To keep volume tractable: for C-class steady SKUs, only emit rows on days with quantity > 0 (sparse storage). Target ~600k–1.2M rows total; insert in 5k-row batches.
+## Approve action
 
-### inventory_levels (every branch × product = 50k rows)
-Default sane on_hand around 30–90 days of supply based on average daily demand. Then deliberately corrupt:
-- 50 SKUs across branches → on_hand below reorder_point (stockout risk).
-- 20 SKUs → on_hand = 0.
-- 100 SKUs → on_hand > 180 days of supply (excess).
-Tag selections include a mix of A-class movers and seasonal SKUs so the demo surfaces meaningful problems.
+**Approve** creates:
+- One `markdown_candidates` row per markdown disposition.
+- One `transfer_orders` row per transfer disposition.
+- One draft `purchase_orders` row bundling the redeploy SKUs by supplier.
+- One `action_audit_log` entry with the full plan JSON.
 
-### purchase_orders (~30)
-Mix of pending / in_transit / received. 5 explicitly `late` (expected_date in the past, no received_date). Spread across suppliers and branches.
+Same confirm-dialog pattern (`ApproveConfirmDialog`) so the user sees exactly what will happen before it fires. Nothing is auto-sent to suppliers.
 
-### customers (~200)
-Realistic contractor/builder names (e.g., "Peachtree Mechanical", "Sunbelt Plumbing Co"), assigned to branches by geography.
+## Data — no new tables needed
 
-## 4. Verification log
+Everything comes from existing tables. Add one RPC `sku_balance_plan(p_branch_id uuid)` that returns `{ releases: [...], redeploys: [...], totals: {...} }` — same shape pattern as `dashboard_summary`. Keeps the client thin.
 
-At the end of the seed function, log (and return in the response):
+## Tour integration
 
-- Row counts per table.
-- Data health summary, e.g.:
-  `Inventory health: 47 SKUs at stockout risk, 18 stocked out, 103 excess (>180 DOS).`
-- Phase-down linkage check: `412 R-410A SKUs linked to R-32/R-454B substitutes.`
-- Seasonal coverage: counts per `seasonality_pattern`.
+Add a **Step 9 — SKU Balance** to `tour-config.ts` with two sub-steps:
+- **9a** highlight the two-column layout, narrate the working-capital story.
+- **9b** highlight *Generate AI Rebalance Plan* button, user clicks it, plan appears.
 
-## 5. How to run
+Place it after Step 8 (Chat) since it's the payoff — "the AI already knows where the money is stuck; here's how it gets it moving."
 
-After the migration applies and the edge function deploys, invoke `seed-data` once. The function is idempotent-guarded: it checks if `products` already has rows and exits early to prevent double-seeding. To re-seed, pass `{ "force": true }`.
+## Build order (if you approve)
 
-## Technical details
+1. `sku_balance_plan` RPC + grants.
+2. `/balance` page with the two tables and totals bar.
+3. `rebalance-plan` edge function + AI narrative panel.
+4. Approve dialog wired to existing action tables + audit log.
+5. Sidebar entry + Dashboard KPI cross-link.
+6. Tour step 9 + `data-tour` anchors.
 
-- Enums created in migration before tables.
-- Edge function uses `@supabase/supabase-js` with the service role key (already available via `SUPABASE_SERVICE_ROLE_KEY` env in Cloud functions).
-- Deterministic seeding via a seeded PRNG (e.g., mulberry32) so the demo is reproducible.
-- Batch size 2,000 rows for sales_history to stay under request limits; total seed runtime ~60–180s.
-- No UI, no routes, no components touched.
+Reply "go" and I'll build it in that order.
