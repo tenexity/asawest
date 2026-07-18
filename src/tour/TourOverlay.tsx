@@ -159,7 +159,7 @@ export function TourOverlay({ step, stepIndex, total, onNext, onPrev, onSkip }: 
 
 function placeCard(rect: Rect, vp: { w: number; h: number }, placement?: TourStep["placement"]) {
   const CARD_W = 380;
-  const CARD_H = 260;
+  const CARD_H = 360;
   const M = 16;
   if (!rect || placement === "center") {
     return { top: Math.max(M, (vp.h - CARD_H) / 2), left: Math.max(M, (vp.w - CARD_W) / 2) };
