@@ -38,24 +38,43 @@ export function TourProvider({ children }: { children: ReactNode }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [ctx, setCtx] = useState<TourCtx>({});
   const [hasSeen, setHasSeen] = useState(false);
+  const [savedStep, setSavedStep] = useState<number | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
     setHasSeen(localStorage.getItem(SEEN_KEY) === "1");
+    const raw = localStorage.getItem(PROGRESS_KEY);
+    const n = raw ? parseInt(raw, 10) : NaN;
+    if (!Number.isNaN(n) && n > 0 && n < TOUR_STEPS.length) setSavedStep(n);
   }, []);
 
-  const start = useCallback(async () => {
+  const beginAt = useCallback(async (i: number) => {
     const hero = await ensureDemoHero();
     setCtx(hero);
-    setStepIndex(0);
+    setStepIndex(i);
     setActive(true);
   }, []);
 
+  const start = useCallback(() => {
+    localStorage.removeItem(PROGRESS_KEY);
+    setSavedStep(null);
+    void beginAt(0);
+  }, [beginAt]);
+
+  const resume = useCallback(() => {
+    void beginAt(savedStep ?? 0);
+  }, [beginAt, savedStep]);
+
   const stop = useCallback(() => {
     setActive(false);
-    localStorage.setItem(SEEN_KEY, "1");
-    setHasSeen(true);
+    setStepIndex((i) => {
+      if (i > 0 && i < TOUR_STEPS.length - 1) {
+        localStorage.setItem(PROGRESS_KEY, String(i));
+        setSavedStep(i);
+      }
+      return i;
+    });
   }, []);
 
   const goTo = useCallback((i: number) => {
@@ -68,7 +87,9 @@ export function TourProvider({ children }: { children: ReactNode }) {
       if (i + 1 >= TOUR_STEPS.length) {
         setActive(false);
         localStorage.setItem(SEEN_KEY, "1");
+        localStorage.removeItem(PROGRESS_KEY);
         setHasSeen(true);
+        setSavedStep(null);
         return i;
       }
       return i + 1;
@@ -102,8 +123,8 @@ export function TourProvider({ children }: { children: ReactNode }) {
   }, [active, next, prev, stop]);
 
   const value = useMemo<Ctx>(() => ({
-    active, stepIndex, start, stop, next, prev, goTo, hasSeen,
-  }), [active, stepIndex, start, stop, next, prev, goTo, hasSeen]);
+    active, stepIndex, start, resume, stop, next, prev, goTo, hasSeen, savedStep,
+  }), [active, stepIndex, start, resume, stop, next, prev, goTo, hasSeen, savedStep]);
 
   return (
     <TourContext.Provider value={value}>
