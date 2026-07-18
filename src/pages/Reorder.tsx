@@ -194,11 +194,20 @@ export default function Reorder() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Reorder Recommendations</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Reorder Plan</h1>
         <p className="text-sm text-muted-foreground">
           {loading ? "Loading…" : `${filtered.length.toLocaleString()} of ${recs.length.toLocaleString()} open recommendations`}
         </p>
       </div>
+
+      <Card className="p-3 border-primary/30 bg-primary/5 text-sm flex gap-2 items-start">
+        <Info className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
+        <div>
+          <span className="font-medium">Tip:</span> run <a href="/balance" className="underline font-medium">SKU Balance</a> first.
+          Approving its transfers and returns will change on-hand and on-order levels — the recommendations here will
+          automatically shrink so you don't double-buy stock that another branch is already sending over.
+        </div>
+      </Card>
 
       {/* Summary */}
       <Card className="p-4">
@@ -293,7 +302,7 @@ export default function Reorder() {
               <TableRow>
                 <TableHead className="w-8"></TableHead>
                 <TableHead>Urgency</TableHead>
-                <TableHead>SKU</TableHead>
+                <TableHead className="min-w-[140px] whitespace-nowrap">SKU</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Branch</TableHead>
                 <TableHead className="text-right">On hand</TableHead>
@@ -354,7 +363,7 @@ export default function Reorder() {
                       {r.rebate_opportunity && <Tag className="h-3 w-3 text-success" aria-label="Rebate opportunity" />}
                     </div>
                   </TableCell>
-                  <TableCell className="font-mono text-xs">{r._sku}</TableCell>
+                  <TableCell className="font-mono text-xs whitespace-nowrap">{r._sku}</TableCell>
                   <TableCell className="max-w-[240px] truncate text-xs">{r._desc}</TableCell>
                   <TableCell className="text-xs">{r._branch}</TableCell>
                   <TableCell className="text-right tabular-nums">{r.on_hand}</TableCell>

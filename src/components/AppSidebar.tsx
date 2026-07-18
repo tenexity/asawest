@@ -28,8 +28,8 @@ import {
 const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "SKU Explorer", url: "/skus", icon: Boxes },
-  { title: "Reorder Recommendations", url: "/reorder", icon: ClipboardList },
   { title: "SKU Balance", url: "/balance", icon: Scale },
+  { title: "Reorder Plan", url: "/reorder", icon: ClipboardList },
   { title: "Network Graph", url: "/network", icon: Network },
   { title: "Agents", url: "/agents", icon: Bot },
   { title: "Ask AI", url: "/ask", icon: Sparkles },
