@@ -1,7 +1,8 @@
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ArrowRight, X } from "lucide-react";
-import type { TourStep } from "./tour-config";
+import { TOUR_STEPS, type TourStep } from "./tour-config";
+
 
 type Props = {
   step: TourStep;
