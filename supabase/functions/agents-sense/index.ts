@@ -1,9 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 type Insight = {
   type: string;
@@ -104,6 +100,7 @@ async function checkSupplierDelays(sb: any): Promise<Insight[]> {
   for (const po of late) {
     const { data: items } = await sb.from("purchase_order_items").select("product_id, quantity, unit_cost").eq("po_id", po.id);
     const impact = (items ?? []).reduce((a: number, i: any) => a + Number(i.quantity) * Number(i.unit_cost), 0);
+    if (!items?.length || impact <= 0) continue;
     out.push({
       type: "supplier_delay_impact",
       severity: severityFromImpact(impact * 0.3),
