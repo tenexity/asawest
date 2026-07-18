@@ -169,10 +169,32 @@ export const TOUR_STEPS: TourStep[] = [
     placement: "top",
   },
 
-  // ── 8. Chat ─────────────────────────────────────────────────────
+  // ── 8. SKU Balance ──────────────────────────────────────────────
+  {
+    id: "balance-overview",
+    group: 8,
+    route: "/balance",
+    target: '[data-tour="balance-totals"]',
+    title: "Turn dead stock back into working capital",
+    body: "The system pairs every excess SKU with a specific disposition — transfer, return, bundle, or markdown — and matches the recovered cash against the SKUs that keep stocking out. One screen, one decision.",
+    why: "For the CFO + VP Ops: this is the working-capital play your team has been trying to build in spreadsheets. It runs every night on live data.",
+    placement: "bottom",
+  },
+  {
+    id: "balance-generate",
+    group: 8,
+    route: "/balance",
+    target: '[data-tour="balance-generate-btn"]',
+    title: "Click 'Generate AI Rebalance Plan' — try it now",
+    body: "The AI names the dollars in, the dollars out, the 2–3 SKUs driving most of the value, and the single highest-ROI move for this week. Click the button before hitting Next.",
+    why: "For the executive team: a board-ready narrative in 10 seconds instead of a 2-week analyst project.",
+    placement: "bottom",
+  },
+
+  // ── 9. Chat ─────────────────────────────────────────────────────
   {
     id: "chat",
-    group: 8,
+    group: 9,
     route: "/chat",
     target: '[data-tour="chat-input"]',
     title: "Ask any question, get the SQL that answered it",
@@ -182,7 +204,7 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     id: "chat-starter",
-    group: 8,
+    group: 9,
     route: "/chat",
     target: '[data-tour="chat-suggestions"]',
     title: "Click a suggested question to try it",
