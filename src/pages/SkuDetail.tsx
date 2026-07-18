@@ -407,10 +407,11 @@ export default function SkuDetail() {
               <Trophy className="h-4 w-4 text-warning" /> Forecast Model Comparison
             </h2>
             <p className="text-xs text-muted-foreground">
-              We run 4 different forecasting methods (moving average, exponential smoothing,
-              Croston for intermittent demand, seasonal naive) against this SKU's last 8 weeks
-              of actual sales. Whichever model predicted the past most accurately (lowest wMAPE
-              error) is shown as the <span className="font-medium text-foreground">winner</span> and
+              We run several forecasting methods — a flat moving average, Holt-Winters
+              exponential smoothing (level + trend + weekly seasonality), and Croston for
+              intermittent demand — against this SKU's last 8 weeks of actual sales.
+              Whichever model predicted the past most accurately (lowest wMAPE error) is
+              shown as the <span className="font-medium text-foreground">winner</span> and
               used to project the next 13 weeks.
             </p>
           </div>
