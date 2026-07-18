@@ -70,10 +70,12 @@ const COL = {
 };
 
 export default function NetworkGraph() {
+  const [searchParams] = useSearchParams();
+  const initialCategory = searchParams.get("category") ?? "all";
   const [graph, setGraph] = useState<GraphData | null>(null);
   const [loading, setLoading] = useState(true);
   const [filterBranch, setFilterBranch] = useState<string>("all");
-  const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [filterCategory, setFilterCategory] = useState<string>(initialCategory);
   const [criticalOnly, setCriticalOnly] = useState(false);
   const [selected, setSelected] = useState<{ label: string; meta: any } | null>(null);
 
@@ -90,9 +92,21 @@ export default function NetworkGraph() {
     (async () => {
       const { data, error } = await supabase.functions.invoke("network-graph");
       if (error) toast.error("Failed to load graph");
-      else setGraph(data as GraphData);
+      else {
+        const g = data as GraphData;
+        setGraph(g);
+        // If a category was requested via URL but the exact string doesn't
+        // exist (case mismatch etc.), match it case-insensitively.
+        if (initialCategory !== "all" && !g.categories.includes(initialCategory)) {
+          const match = g.categories.find(
+            (c) => c.toLowerCase() === initialCategory.toLowerCase(),
+          );
+          if (match) setFilterCategory(match);
+        }
+      }
       setLoading(false);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Default supplier = largest spend
