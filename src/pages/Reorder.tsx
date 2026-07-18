@@ -335,7 +335,7 @@ export default function Reorder() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.slice(0, 500).map(r => (
+              {filtered.slice(0, 500).map((r, idx) => (
                 <TableRow key={r.id}>
                   <TableCell>
                     <Checkbox
@@ -365,7 +365,7 @@ export default function Reorder() {
                   <TableCell className="text-xs">{r._supplier}</TableCell>
                   <TableCell className="text-right text-xs">{r.lead_time_days}d</TableCell>
                   <TableCell>
-                    <Button size="sm" variant="ghost" onClick={() => openWhy(r.id)}>
+                    <Button size="sm" variant="ghost" onClick={() => openWhy(r.id)} {...(idx === 0 ? { "data-tour": "reorder-why-btn" } : {})}>
                       <Info className="h-3.5 w-3.5 mr-1" /> Why
                     </Button>
                   </TableCell>

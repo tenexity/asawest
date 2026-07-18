@@ -102,6 +102,16 @@ export const TOUR_STEPS: TourStep[] = [
     why: "For the buyer's manager: every recommendation is defensible in a supplier conversation.",
     placement: "bottom",
   },
+  {
+    id: "reorder-why-modal",
+    group: 4,
+    route: "/reorder",
+    target: '[data-tour="reorder-why-btn"]',
+    title: "Click 'Why' — open the full calculation",
+    body: "The Why modal is the single most valuable screen for a buyer: avg daily demand, standard deviation, recent max day, lead time ± variability, service-level z-score, safety stock, reorder point, on-hand vs on-order, days of supply, MOQ, plus any seasonality boost or rebate-threshold bump — all in one place. Click Why on the first row to see it now, then hit Next.",
+    why: "For the buyer and their manager: this is the audit trail most ERPs never expose. Every number that drove the suggested quantity is visible and defensible in a supplier conversation or an internal review.",
+    placement: "left",
+  },
 
   // ── 5. Network graph ────────────────────────────────────────────
   {
