@@ -30,6 +30,7 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/auth" element={<Navigate to="/" replace />} />
+            <Route element={<AppLayout />}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/skus" element={<Skus />} />
               <Route path="/skus/:id" element={<SkuDetail />} />
