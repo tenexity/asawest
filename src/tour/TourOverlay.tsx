@@ -26,15 +26,28 @@ export function TourOverlay({ step, stepIndex, total, onNext, onPrev, onSkip }: 
     if (!step.target) return;
     let cancelled = false;
     let tries = 0;
+    let scrolled = false;
     const tick = () => {
       if (cancelled) return;
       const el = document.querySelector(step.target!) as HTMLElement | null;
       if (el) {
+        // On first find, scroll so the target sits near the top of the
+        // viewport (leaves room for the card below and prevents the card
+        // from being pushed off-screen when the target is very tall).
+        if (!scrolled) {
+          scrolled = true;
+          const r0 = el.getBoundingClientRect();
+          const targetTop = 120; // px from top of viewport
+          window.scrollBy({ top: r0.top - targetTop, behavior: "smooth" });
+          // Re-measure after scroll settles
+          setTimeout(() => {
+            if (cancelled) return;
+            const r1 = el.getBoundingClientRect();
+            setRect({ top: r1.top, left: r1.left, width: r1.width, height: r1.height });
+          }, 350);
+        }
         const r = el.getBoundingClientRect();
         setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
-        // Ensure visible
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-        // continue observing size
       } else if (tries++ < 40) {
         setTimeout(tick, 100);
       }
