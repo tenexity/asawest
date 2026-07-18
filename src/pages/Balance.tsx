@@ -8,7 +8,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Scale, Sparkles, Loader2, Download, CheckCircle2, ArrowRight, ArrowLeft } from "lucide-react";
+import { Scale, Sparkles, Loader2, Download, CheckCircle2, ArrowRight, ArrowLeft, RefreshCw } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
