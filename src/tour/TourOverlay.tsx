@@ -120,8 +120,9 @@ export function TourOverlay({ step, stepIndex, total, onNext, onPrev, onSkip }: 
       >
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-primary">
-            Tour · Step {stepIndex + 1} of {total}
+            {buildStepLabel(stepIndex, total)}
           </div>
+
           <button onClick={onSkip} className="text-muted-foreground hover:text-foreground" aria-label="Close tour">
             <X className="h-4 w-4" />
           </button>
