@@ -39,7 +39,7 @@ export const TOUR_STEPS: TourStep[] = [
     title: "Four forecast models compete on every SKU",
     body: "Naive, moving average, exponential smoothing, and seasonal — the winner is chosen per-SKU with a confidence band and a plain-English reason.",
     why: "For the Buyer: no more guessing from a spreadsheet. The math is transparent and you can override it.",
-    placement: "top",
+    placement: "right",
   },
   {
     id: "reorder-recs",
@@ -52,12 +52,12 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     id: "network-graph",
-    route: "/network",
+    route: "/network?category=fittings&tour=1",
     target: '[data-tour="network-canvas"]',
     title: "Your whole supply chain in one picture",
-    body: "Suppliers → categories → branches → customer types, sized by 90-day flow-through. Filter to any category to see who really matters.",
+    body: "Suppliers → categories → branches → customer types, sized by 90-day flow-through. We've pre-filtered to Fittings so the story is easy to read — change the filter any time.",
     why: "For VP Ops: see concentration risk (one supplier = 40% of copper flow) before it becomes a fire drill.",
-    placement: "bottom",
+    placement: "right",
   },
   {
     id: "disruption-sim",

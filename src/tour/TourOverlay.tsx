@@ -26,15 +26,28 @@ export function TourOverlay({ step, stepIndex, total, onNext, onPrev, onSkip }: 
     if (!step.target) return;
     let cancelled = false;
     let tries = 0;
+    let scrolled = false;
     const tick = () => {
       if (cancelled) return;
       const el = document.querySelector(step.target!) as HTMLElement | null;
       if (el) {
+        // On first find, scroll so the target sits near the top of the
+        // viewport (leaves room for the card below and prevents the card
+        // from being pushed off-screen when the target is very tall).
+        if (!scrolled) {
+          scrolled = true;
+          const r0 = el.getBoundingClientRect();
+          const targetTop = 120; // px from top of viewport
+          window.scrollBy({ top: r0.top - targetTop, behavior: "smooth" });
+          // Re-measure after scroll settles
+          setTimeout(() => {
+            if (cancelled) return;
+            const r1 = el.getBoundingClientRect();
+            setRect({ top: r1.top, left: r1.left, width: r1.width, height: r1.height });
+          }, 350);
+        }
         const r = el.getBoundingClientRect();
         setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
-        // Ensure visible
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-        // continue observing size
       } else if (tries++ < 40) {
         setTimeout(tick, 100);
       }
@@ -166,15 +179,19 @@ function placeCard(rect: Rect, vp: { w: number; h: number }, placement?: TourSte
     top = rect.top + rect.height + M;
     left = clamp(rect.left + rect.width / 2 - CARD_W / 2, M, vp.w - CARD_W - M);
   } else if (preferred === "top") {
-    top = Math.max(M, rect.top - CARD_H - M);
+    top = rect.top - CARD_H - M;
     left = clamp(rect.left + rect.width / 2 - CARD_W / 2, M, vp.w - CARD_W - M);
   } else if (preferred === "right") {
     top = clamp(rect.top + rect.height / 2 - CARD_H / 2, M, vp.h - CARD_H - M);
-    left = Math.min(vp.w - CARD_W - M, rect.left + rect.width + M);
+    left = rect.left + rect.width + M;
   } else {
     top = clamp(rect.top + rect.height / 2 - CARD_H / 2, M, vp.h - CARD_H - M);
-    left = Math.max(M, rect.left - CARD_W - M);
+    left = rect.left - CARD_W - M;
   }
+  // Final clamp so the card always stays fully inside the viewport,
+  // even when the target is very large or near an edge.
+  top = clamp(top, M, Math.max(M, vp.h - CARD_H - M));
+  left = clamp(left, M, Math.max(M, vp.w - CARD_W - M));
   return { top, left };
 }
 
