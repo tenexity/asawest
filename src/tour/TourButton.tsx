@@ -8,9 +8,8 @@ export function TourButton() {
   return (
     <Button
       size="sm"
-      variant={hasSeen ? "outline" : "default"}
       onClick={start}
-      className={hasSeen ? "" : "animate-pulse"}
+      className={`bg-red-600 hover:bg-red-700 text-white border-transparent ${hasSeen ? "" : "animate-pulse"}`}
       data-tour="start-tour-btn"
     >
       <PlayCircle className="h-4 w-4 mr-1.5" />
