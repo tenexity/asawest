@@ -59,38 +59,66 @@ const balanceCache: Record<string, CacheEntry> = {};
 
 export default function Balance() {
   const { branchId } = useBranch();
-  const [loading, setLoading] = useState(true);
-  const [releases, setReleases] = useState<Release[]>([]);
-  const [redeploys, setRedeploys] = useState<Redeploy[]>([]);
-  const [totals, setTotals] = useState<Totals | null>(null);
+  const cacheKey = branchId ?? "all";
+  const cached = balanceCache[cacheKey];
+  const [loading, setLoading] = useState(!cached);
+  const [releases, setReleases] = useState<Release[]>(cached?.releases ?? []);
+  const [redeploys, setRedeploys] = useState<Redeploy[]>(cached?.redeploys ?? []);
+  const [totals, setTotals] = useState<Totals | null>(cached?.totals ?? null);
+  const [lastUpdated, setLastUpdated] = useState<number | null>(cached?.ts ?? null);
   const [plan, setPlan] = useState<string>("");
   const [planLoading, setPlanLoading] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [, setNowTick] = useState(0);
+
+  // Tick every 30s so "updated Xm ago" refreshes.
+  useEffect(() => {
+    const id = setInterval(() => setNowTick((n) => n + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const loadData = useCallback(async (force: boolean) => {
+    const key = branchId ?? "all";
+    const existing = balanceCache[key];
+    if (!force && existing) {
+      setReleases(existing.releases);
+      setRedeploys(existing.redeploys);
+      setTotals(existing.totals);
+      setLastUpdated(existing.ts);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const { data, error } = await supabase.rpc("sku_balance_plan" as any, {
+      p_branch_id: branchId === "all" ? null : branchId,
+    });
+    if (error) {
+      console.error(error);
+      toast.error("Failed to load rebalance data");
+      setLoading(false);
+      return;
+    }
+    const d = (data ?? {}) as any;
+    const entry: CacheEntry = {
+      releases: (d.releases ?? []) as Release[],
+      redeploys: (d.redeploys ?? []) as Redeploy[],
+      totals: (d.totals ?? null) as Totals | null,
+      ts: Date.now(),
+    };
+    balanceCache[key] = entry;
+    setReleases(entry.releases);
+    setRedeploys(entry.redeploys);
+    setTotals(entry.totals);
+    setLastUpdated(entry.ts);
+    setLoading(false);
+  }, [branchId]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setPlan("");
-      const { data, error } = await supabase.rpc("sku_balance_plan" as any, {
-        p_branch_id: branchId === "all" ? null : branchId,
-      });
-      if (cancelled) return;
-      if (error) {
-        console.error(error);
-        toast.error("Failed to load rebalance data");
-        setLoading(false);
-        return;
-      }
-      const d = (data ?? {}) as any;
-      setReleases((d.releases ?? []) as Release[]);
-      setRedeploys((d.redeploys ?? []) as Redeploy[]);
-      setTotals((d.totals ?? null) as Totals | null);
-      setLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, [branchId]);
+    setPlan("");
+    void loadData(false);
+  }, [loadData]);
+
 
   const netFreed = useMemo(
     () => Math.max((totals?.cash_freed ?? 0) - (totals?.cash_needed ?? 0), 0),
