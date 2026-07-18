@@ -182,10 +182,10 @@ export default function Balance() {
         insight_title: "SKU Balance — working-capital rebalance",
         financial_impact_usd: netFreed,
         action_summary: `Freed ~${fmt$(totals?.cash_freed ?? 0)}, redeploying into ${redeploys.length} short SKUs. Created ${transfers.length} transfer(s), ${markdowns.length} markdown(s).`,
-        action_payload: { releases, redeploys, totals, generated_at: now },
-        result_json: { transfers_created: transfers.length, markdowns_created: markdowns.length },
+        action_payload: { releases, redeploys, totals, generated_at: now } as any,
+        result_json: { transfers_created: transfers.length, markdowns_created: markdowns.length } as any,
         status: "success",
-      });
+      } as any);
       if (auditErr) throw auditErr;
 
       toast.success(`Plan approved · ${transfers.length} transfer(s), ${markdowns.length} markdown(s) queued`);
