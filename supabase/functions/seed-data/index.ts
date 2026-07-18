@@ -409,8 +409,50 @@ async function runCore(supabase: any, startedAt: number) {
       received_date: null, status: "late",
     });
   }
-  await chunkInsert(supabase, "purchase_orders", poRows, 100);
-  log.push(`purchase_orders: ${poRows.length}`);
+  const { data: insertedPOs, error: poErr } = await supabase
+    .from("purchase_orders").insert(poRows).select("id,supplier_id");
+  if (poErr) throw poErr;
+  log.push(`purchase_orders: ${insertedPOs.length}`);
+
+  // PO LINE ITEMS — every PO gets 3-12 real line items from its supplier's catalog
+  const supProdMap = new Map<string, { product_id: string; unit_cost: number }[]>();
+  {
+    let from = 0; const pageSize = 1000;
+    while (true) {
+      const { data, error } = await supabase
+        .from("supplier_products")
+        .select("supplier_id,product_id,products(unit_cost)")
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+      for (const row of data as any[]) {
+        const arr = supProdMap.get(row.supplier_id) ?? [];
+        arr.push({ product_id: row.product_id, unit_cost: Number(row.products?.unit_cost ?? 0) });
+        supProdMap.set(row.supplier_id, arr);
+      }
+      if (data.length < pageSize) break;
+      from += pageSize;
+    }
+  }
+  const itemRows: any[] = [];
+  for (const po of insertedPOs as any[]) {
+    const catalog = supProdMap.get(po.supplier_id) ?? [];
+    if (catalog.length === 0) continue;
+    const lineCount = ri(3, Math.min(12, catalog.length));
+    const chosen = new Set<string>();
+    while (chosen.size < lineCount) {
+      chosen.add(catalog[Math.floor(rand() * catalog.length)].product_id);
+    }
+    for (const pid of chosen) {
+      const entry = catalog.find((c) => c.product_id === pid)!;
+      const qty = ri(10, 500);
+      const cost = entry.unit_cost > 0 ? entry.unit_cost : ri(2, 50);
+      itemRows.push({ po_id: po.id, product_id: pid, quantity: qty, unit_cost: cost });
+    }
+  }
+  await chunkInsert(supabase, "purchase_order_items", itemRows, 1000);
+  log.push(`purchase_order_items: ${itemRows.length}`);
+
 
   // CUSTOMERS
   const custFirst = ["Peachtree","Sunbelt","Tarheel","Desert","Lone Star","Music City","Magnolia","Carolina","Cumberland","Catalina","Smoky Mountain","Buckhead","Piedmont","Trinity","Saguaro","Mockingbird","Riverbend","Stone Mountain"];
