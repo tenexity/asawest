@@ -303,7 +303,8 @@ export default function Dashboard() {
       </div>
 
       {/* Branch comparison */}
-      <Card className="p-0 overflow-hidden">
+      <Card className="p-0 overflow-hidden" data-tour="branch-comparison">
+
         <div className="px-4 py-3 border-b">
           <h2 className="font-semibold">Branch Comparison</h2>
         </div>
