@@ -32,7 +32,7 @@ export const TOUR_STEPS: TourStep[] = [
     route: "/",
     target: '[data-tour="branch-comparison"]',
     title: "Compare every branch on one line",
-    body: "Fill rate, stockouts, excess SKUs, inventory value, and days of supply — side by side. Outliers jump out immediately.",
+    body: "Fill rate, stockouts, excess SKUs, inventory value, and days of supply — side by side. Outliers jump out immediately. Later in the tour we'll show you how to rebalance inventory across branches so every location lands at optimal levels.",
     why: "For the VP of Ops: know which branch to visit this week without opening five reports.",
     placement: "top",
   },
