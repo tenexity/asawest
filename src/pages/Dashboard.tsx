@@ -299,7 +299,9 @@ export default function Dashboard() {
           spark={cogsSpark}
           color={turns >= 4 ? successColor : turns >= 2 ? warningColor : dangerColor}
           hint="Annualized, last 90d"
+          to="/balance"
         />
+
       </div>
 
       {/* Branch comparison */}
