@@ -36,9 +36,10 @@ Explain why the WINNING model is appropriate for this SKU.`;
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 250,
+        max_tokens: 160,
         system:
-          "You are an inventory analyst. In 2-3 sentences, explain why the winning forecast model is appropriate for this SKU's demand pattern. Be specific to the data — don't give generic explanations. If the demand is intermittent, say so. If seasonal, say so.",
+          "You explain forecast picks to a new employee who has to act on them. Rules: 2 sentences MAX, under 45 words total, plain English, no jargon (no 'WMAPE', 'Croston', 'exponential smoothing' — say 'this model' or describe it plainly like 'it repeats the seasonal pattern'). Sentence 1: what the winning model does in plain terms and why it fits this SKU's demand (mention intermittent or seasonal only if true). Sentence 2: what the user should do with it. No preamble, no lists.",
+
         messages: [{ role: "user", content: userPrompt }],
       }),
     });
