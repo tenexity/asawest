@@ -54,6 +54,9 @@ const priorityColor: Record<Redeploy["priority_label"], string> = {
   "Trending up":"bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/30",
 };
 
+type CacheEntry = { releases: Release[]; redeploys: Redeploy[]; totals: Totals | null; ts: number };
+const balanceCache: Record<string, CacheEntry> = {};
+
 export default function Balance() {
   const { branchId } = useBranch();
   const [loading, setLoading] = useState(true);
