@@ -352,7 +352,9 @@ function InsightCard({
       </div>
 
       {insight.narrative ? (
-        <p className="text-sm text-muted-foreground leading-relaxed">{insight.narrative}</p>
+        <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground prose-headings:mt-2 prose-headings:mb-1 prose-headings:text-foreground prose-strong:text-foreground prose-p:my-1 prose-ul:my-1 prose-li:my-0">
+          <ReactMarkdown>{insight.narrative}</ReactMarkdown>
+        </div>
       ) : (
         <p className="text-xs text-muted-foreground italic">Drafting narrative…</p>
       )}
