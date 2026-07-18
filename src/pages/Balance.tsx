@@ -326,7 +326,7 @@ export default function Balance() {
           onClick={() => setConfirmOpen(true)}
           disabled={loading || (releases.length === 0 && redeploys.length === 0)}
         >
-          <CheckCircle2 className="h-4 w-4 mr-2" /> Approve Plan
+          <CheckCircle2 className="h-4 w-4 mr-2" /> Start the Process
         </Button>
       </div>
 
