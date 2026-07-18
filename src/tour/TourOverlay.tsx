@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ArrowRight, X } from "lucide-react";
-import type { TourStep } from "./tour-config";
+import { TOUR_STEPS, type TourStep } from "./tour-config";
+
 
 type Props = {
   step: TourStep;
@@ -119,8 +120,9 @@ export function TourOverlay({ step, stepIndex, total, onNext, onPrev, onSkip }: 
       >
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-primary">
-            Tour · Step {stepIndex + 1} of {total}
+            {buildStepLabel(stepIndex, total)}
           </div>
+
           <button onClick={onSkip} className="text-muted-foreground hover:text-foreground" aria-label="Close tour">
             <X className="h-4 w-4" />
           </button>
@@ -198,3 +200,15 @@ function placeCard(rect: Rect, vp: { w: number; h: number }, placement?: TourSte
 function clamp(n: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, n));
 }
+
+// "Tour · Step 3a of 8" — a/b/c letters when a major step has sub-steps.
+function buildStepLabel(index: number, _total: number) {
+  const step = TOUR_STEPS[index];
+  const groupIds = Array.from(new Set(TOUR_STEPS.map((s) => s.group)));
+  const groupTotal = groupIds.length;
+  const sameGroup = TOUR_STEPS.filter((s) => s.group === step.group);
+  const posInGroup = sameGroup.findIndex((s) => s.id === step.id);
+  const suffix = sameGroup.length > 1 ? String.fromCharCode(97 + posInGroup) : "";
+  return `Tour · Step ${step.group}${suffix} of ${groupTotal}`;
+}
+

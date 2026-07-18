@@ -506,7 +506,7 @@ export default function NetworkGraph() {
               <Label className="text-xs">Delay: {delay} days</Label>
               <Slider value={[delay]} min={1} max={30} step={1} onValueChange={(v) => setDelay(v[0])} />
             </div>
-            <Button size="lg" onClick={runSimulation} disabled={simRunning || !supplierId}>
+            <Button size="lg" data-tour="run-simulation-btn" onClick={runSimulation} disabled={simRunning || !supplierId}>
               {simRunning ? (
                 <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Running…</>
               ) : (
