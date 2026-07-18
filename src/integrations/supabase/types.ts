@@ -23,7 +23,7 @@ export type Database = {
           error_message: string | null
           financial_impact_usd: number
           id: string
-          insight_id: string
+          insight_id: string | null
           insight_title: string
           insight_type: string
           result_json: Json
@@ -38,7 +38,7 @@ export type Database = {
           error_message?: string | null
           financial_impact_usd?: number
           id?: string
-          insight_id: string
+          insight_id?: string | null
           insight_title: string
           insight_type: string
           result_json?: Json
@@ -53,7 +53,7 @@ export type Database = {
           error_message?: string | null
           financial_impact_usd?: number
           id?: string
-          insight_id?: string
+          insight_id?: string | null
           insight_title?: string
           insight_type?: string
           result_json?: Json
@@ -855,6 +855,7 @@ export type Database = {
         Returns: boolean
       }
       network_graph_data: { Args: never; Returns: Json }
+      sku_balance_plan: { Args: { p_branch_id?: string }; Returns: Json }
       skus_overview: { Args: { p_branch_id?: string }; Returns: Json }
     }
     Enums: {

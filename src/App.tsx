@@ -17,6 +17,7 @@ import Chat from "./pages/Chat";
 import Auth from "./pages/Auth";
 import Settings from "./pages/Settings";
 import Users from "./pages/Users";
+import Balance from "./pages/Balance";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -38,6 +39,7 @@ const App = () => (
               <Route path="/reorders" element={<Reorder />} />
               <Route path="/network" element={<NetworkGraph />} />
               <Route path="/graph" element={<NetworkGraph />} />
+              <Route path="/balance" element={<Balance />} />
               <Route path="/agents" element={<Agents />} />
               <Route path="/ask" element={<Chat />} />
               <Route path="/chat" element={<Chat />} />
