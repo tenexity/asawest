@@ -10,15 +10,39 @@ export type ForecastResult = {
 export function movingAverage(history: number[], horizon = 13, window = 13): ForecastResult {
   const n = history.length;
   if (n < 2) return { name: "Moving Average", forecast: [], applicable: false, reason: "Not enough history" };
+
+  // If we have at least a full year of history, produce a seasonal-naive
+  // moving average: for each future week h, average the same week-of-year
+  // across all prior years. This keeps the line "moving-average simple" in
+  // spirit but avoids a dead-flat projection on strongly seasonal SKUs.
+  const season = 52;
+  if (n >= season) {
+    const forecast: number[] = [];
+    for (let h = 1; h <= horizon; h++) {
+      const samples: number[] = [];
+      // Walk back through history at the same seasonal offset.
+      for (let k = n - season + ((h - 1) % season); k >= 0; k -= season) {
+        samples.push(history[k]);
+      }
+      const avg = samples.length
+        ? samples.reduce((a, b) => a + b, 0) / samples.length
+        : history[history.length - 1];
+      forecast.push(Math.max(0, avg));
+    }
+    return { name: "Moving Average", forecast, applicable: true };
+  }
+
+  // Short history — fall back to the classic trailing-window average.
   const w = Math.min(window, n);
   const slice = history.slice(-w);
   const avg = slice.reduce((a, b) => a + b, 0) / w;
   return { name: "Moving Average", forecast: Array(horizon).fill(avg), applicable: true };
 }
 
-// Holt-Winters additive: level + trend + seasonality (weekly).
-// Produces a varying forecast curve (unlike simple exponential smoothing,
-// which mathematically collapses to a flat line at the last level).
+// Damped Holt-Winters additive: level + damped trend + weekly seasonality.
+// The damping factor (phi) prevents long-horizon extrapolation from
+// dragging the forecast to zero when the recent-year trend is slightly
+// negative.
 export function exponentialSmoothing(
   history: number[],
   horizon = 13,
@@ -26,17 +50,14 @@ export function exponentialSmoothing(
   beta = 0.15,
   gamma = 0.4,
   season = 52,
+  phi = 0.85,
 ): ForecastResult {
   const n = history.length;
   if (n < 4)
     return { name: "Exponential Smoothing", forecast: [], applicable: false, reason: "Not enough history" };
 
-  // Prefer the full annual cycle whenever we have at least one year of
-  // history; only fall back to a shorter cycle for very short series.
   const m = n >= season ? season : Math.max(4, Math.floor(n / 2));
 
-  // Seed level = mean of first cycle; trend = slope between first and last
-  // cycle means; seasonals = first-cycle deviations from the seed level.
   const seed = history.slice(0, m);
   let level = seed.reduce((a, b) => a + b, 0) / m;
   const lastCycle = history.slice(-m);
@@ -48,26 +69,31 @@ export function exponentialSmoothing(
   for (let i = 0; i < n; i++) {
     const s = seasonals[i % m];
     const prevLevel = level;
-    level = alpha * (history[i] - s) + (1 - alpha) * (level + trend);
-    trend = beta * (level - prevLevel) + (1 - beta) * trend;
+    level = alpha * (history[i] - s) + (1 - alpha) * (level + phi * trend);
+    trend = beta * (level - prevLevel) + (1 - beta) * phi * trend;
     seasonals[i % m] = gamma * (history[i] - level) + (1 - gamma) * s;
   }
 
-  // Anchor the forecast to the recent-year average so the projection sits
-  // in the same range as history. Without this, additive smoothing on a
-  // series with big seasonal swings can settle far below the recent mean.
+  // Anchor the forecast level to the recent-year average.
   const seasonalMean =
     seasonals.reduce((a, b) => a + b, 0) / seasonals.length;
   const anchor = lastMean - seasonalMean;
   level = 0.5 * level + 0.5 * anchor;
 
+  // Floor at 10% of the anchor so a strongly negative trend can't collapse
+  // the projection to zero on longer horizons.
+  const floor = Math.max(0, 0.1 * Math.max(anchor, 0));
+
   const forecast: number[] = [];
+  let dampedTrendSum = 0;
   for (let h = 1; h <= horizon; h++) {
+    dampedTrendSum += Math.pow(phi, h); // sum of phi^1..phi^h
     const s = seasonals[(n + h - 1) % m];
-    forecast.push(Math.max(0, level + h * trend + s));
+    forecast.push(Math.max(floor, level + trend * dampedTrendSum + s));
   }
   return { name: "Exponential Smoothing", forecast, applicable: true };
 }
+
 
 
 // Croston's method for intermittent demand
