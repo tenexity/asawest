@@ -7,48 +7,67 @@ export type ForecastResult = {
   reason?: string;
 };
 
+// Helper: robust min/max clip so forecasts stay inside the historical envelope.
+function envelope(history: number[]) {
+  if (!history.length) return { lo: 0, hi: 0, mean: 0 };
+  const sorted = [...history].sort((a, b) => a - b);
+  const q = (p: number) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.floor(p * sorted.length)))];
+  const lo = Math.max(0, q(0.05));
+  const hi = q(0.95);
+  const mean = history.reduce((a, b) => a + b, 0) / history.length;
+  return { lo, hi, mean };
+}
+
 export function movingAverage(history: number[], horizon = 13, window = 13): ForecastResult {
   const n = history.length;
   if (n < 2) return { name: "Moving Average", forecast: [], applicable: false, reason: "Not enough history" };
 
-  // If we have at least a full year of history, produce a seasonal-naive
-  // moving average: for each future week h, average the same week-of-year
-  // across all prior years. This keeps the line "moving-average simple" in
-  // spirit but avoids a dead-flat projection on strongly seasonal SKUs.
+  const { lo, hi, mean } = envelope(history);
+  const trailing = history.slice(-Math.min(window, n));
+  const trailingAvg = trailing.reduce((a, b) => a + b, 0) / trailing.length;
+
+  // If we have at least a full year of history, produce a *smoothed*
+  // seasonal-naive moving average: for each future week h, average the
+  // same week-of-year (± a 2-week window) across all prior years, then
+  // blend 50/50 with the trailing average. This gives the line a seasonal
+  // shape without replaying last year's week-to-week noise.
   const season = 52;
   if (n >= season) {
     const forecast: number[] = [];
     for (let h = 1; h <= horizon; h++) {
+      const centerOffset = (h - 1) % season;
       const samples: number[] = [];
-      // Walk back through history at the same seasonal offset.
-      for (let k = n - season + ((h - 1) % season); k >= 0; k -= season) {
-        samples.push(history[k]);
+      for (let dk = -2; dk <= 2; dk++) {
+        const off = ((centerOffset + dk) % season + season) % season;
+        for (let k = n - season + off; k >= 0; k -= season) {
+          if (k >= 0 && k < n) samples.push(history[k]);
+        }
       }
-      const avg = samples.length
+      const seasonal = samples.length
         ? samples.reduce((a, b) => a + b, 0) / samples.length
-        : history[history.length - 1];
-      forecast.push(Math.max(0, avg));
+        : trailingAvg;
+      const blended = 0.5 * seasonal + 0.5 * trailingAvg;
+      forecast.push(Math.min(hi, Math.max(lo, blended)));
     }
     return { name: "Moving Average", forecast, applicable: true };
   }
 
-  // Short history — fall back to the classic trailing-window average.
-  const w = Math.min(window, n);
-  const slice = history.slice(-w);
-  const avg = slice.reduce((a, b) => a + b, 0) / w;
+  // Short history — classic trailing-window average, clipped to envelope.
+  const avg = Math.min(hi, Math.max(lo, trailingAvg || mean));
   return { name: "Moving Average", forecast: Array(horizon).fill(avg), applicable: true };
 }
 
 // Damped Holt-Winters additive: level + damped trend + weekly seasonality.
 // The damping factor (phi) prevents long-horizon extrapolation from
 // dragging the forecast to zero when the recent-year trend is slightly
-// negative.
+// negative. Seasonal learning (gamma) is deliberately low so the seasonal
+// component doesn't chase week-to-week noise and blow the envelope.
 export function exponentialSmoothing(
   history: number[],
   horizon = 13,
-  alpha = 0.35,
-  beta = 0.15,
-  gamma = 0.4,
+  alpha = 0.2,
+  beta = 0.05,
+  gamma = 0.15,
   season = 52,
   phi = 0.85,
 ): ForecastResult {
@@ -75,24 +94,24 @@ export function exponentialSmoothing(
   }
 
   // Anchor the forecast level to the recent-year average.
-  const seasonalMean =
-    seasonals.reduce((a, b) => a + b, 0) / seasonals.length;
+  const seasonalMean = seasonals.reduce((a, b) => a + b, 0) / seasonals.length;
   const anchor = lastMean - seasonalMean;
   level = 0.5 * level + 0.5 * anchor;
 
-  // Floor at 10% of the anchor so a strongly negative trend can't collapse
-  // the projection to zero on longer horizons.
-  const floor = Math.max(0, 0.1 * Math.max(anchor, 0));
-
+  // Clip each forecast to the historical envelope so the projection never
+  // swings above the highest or below the lowest weekly value we've seen.
+  const { lo, hi } = envelope(history);
   const forecast: number[] = [];
   let dampedTrendSum = 0;
   for (let h = 1; h <= horizon; h++) {
-    dampedTrendSum += Math.pow(phi, h); // sum of phi^1..phi^h
+    dampedTrendSum += Math.pow(phi, h);
     const s = seasonals[(n + h - 1) % m];
-    forecast.push(Math.max(floor, level + trend * dampedTrendSum + s));
+    const raw = level + trend * dampedTrendSum + s;
+    forecast.push(Math.min(hi, Math.max(lo, raw)));
   }
   return { name: "Exponential Smoothing", forecast, applicable: true };
 }
+
 
 
 
