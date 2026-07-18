@@ -855,6 +855,7 @@ export type Database = {
         Returns: boolean
       }
       network_graph_data: { Args: never; Returns: Json }
+      sku_balance_plan: { Args: { p_branch_id?: string }; Returns: Json }
       skus_overview: { Args: { p_branch_id?: string }; Returns: Json }
     }
     Enums: {
