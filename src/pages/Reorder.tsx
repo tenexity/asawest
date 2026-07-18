@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import ReactMarkdown from "react-markdown";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -433,9 +434,15 @@ export default function Reorder() {
                 <div className="font-medium text-xs inline-flex items-center gap-1 mb-1">
                   <Sparkles className="h-3 w-3" /> Analyst note
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  {narrativeLoading ? "Generating…" : narrative || "—"}
-                </p>
+                {narrativeLoading ? (
+                  <p className="text-sm text-muted-foreground">Generating…</p>
+                ) : narrative ? (
+                  <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:mt-2 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1">
+                    <ReactMarkdown>{narrative}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">—</p>
+                )}
               </div>
             </div>
           )}
