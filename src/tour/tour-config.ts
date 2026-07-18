@@ -144,7 +144,7 @@ export const TOUR_STEPS: TourStep[] = [
     title: "Click 'Run Simulation' — try it now",
     body: "In a few seconds you'll get a severity heat map, top 20 at-risk SKUs with days-to-stockout, and AI-drafted recommended actions. Click the button before hitting Next.",
     why: "For the whole team: replaces the 'call everyone and panic' response with a specific 48-hour action list.",
-    placement: "top",
+    placement: "right",
   },
 
   // ── 7. Agents ───────────────────────────────────────────────────
