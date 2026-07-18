@@ -36,10 +36,8 @@ type Totals = {
   release_count: number; redeploy_count: number;
 };
 
-const fmt$ = (n: number) =>
-  n >= 1000
-    ? `$${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k`
-    : `$${Math.round(n).toLocaleString()}`;
+const fmt$ = (n: number) => `$${Math.round(n).toLocaleString()}`;
+
 
 const dispositionColor: Record<Release["disposition"], string> = {
   Transfer: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/30",
