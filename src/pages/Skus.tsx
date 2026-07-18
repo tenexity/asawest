@@ -282,7 +282,7 @@ export default function Skus() {
         </div>
       </Card>
 
-      <Card className="p-0 overflow-hidden">
+      <Card className="p-0 overflow-hidden" data-tour="sku-table">
         <div className="max-h-[calc(100vh-280px)] overflow-auto">
           <Table>
             <TableHeader className="sticky top-0 bg-background z-10">
