@@ -1,0 +1,1 @@
+ALTER TABLE public.action_audit_log ALTER COLUMN insight_id DROP NOT NULL;
