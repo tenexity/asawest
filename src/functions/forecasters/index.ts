@@ -16,12 +16,50 @@ export function movingAverage(history: number[], horizon = 13, window = 13): For
   return { name: "Moving Average", forecast: Array(horizon).fill(avg), applicable: true };
 }
 
-export function exponentialSmoothing(history: number[], horizon = 13, alpha = 0.3): ForecastResult {
-  if (history.length < 2)
+// Holt-Winters additive: level + trend + seasonality (weekly).
+// Produces a varying forecast curve (unlike simple exponential smoothing,
+// which mathematically collapses to a flat line at the last level).
+export function exponentialSmoothing(
+  history: number[],
+  horizon = 13,
+  alpha = 0.35,
+  beta = 0.15,
+  gamma = 0.4,
+  season = 52,
+): ForecastResult {
+  const n = history.length;
+  if (n < 4)
     return { name: "Exponential Smoothing", forecast: [], applicable: false, reason: "Not enough history" };
-  let level = history[0];
-  for (let i = 1; i < history.length; i++) level = alpha * history[i] + (1 - alpha) * level;
-  return { name: "Exponential Smoothing", forecast: Array(horizon).fill(level), applicable: true };
+
+  // If we don't have enough history for the full annual season, fall back
+  // to a shorter cycle so trend + seasonality still show up on the chart.
+  const m = Math.min(season, Math.max(4, Math.floor(n / 2)));
+
+  // Seed level = mean of first cycle; trend = avg slope across first two cycles;
+  // seasonals = first-cycle deviations from the seed level.
+  const seed = history.slice(0, m);
+  let level = seed.reduce((a, b) => a + b, 0) / m;
+  const nextSeed = history.slice(m, Math.min(n, 2 * m));
+  const nextMean = nextSeed.length
+    ? nextSeed.reduce((a, b) => a + b, 0) / nextSeed.length
+    : level;
+  let trend = (nextMean - level) / m;
+  const seasonals = seed.map((v) => v - level);
+
+  for (let i = 0; i < n; i++) {
+    const s = seasonals[i % m];
+    const prevLevel = level;
+    level = alpha * (history[i] - s) + (1 - alpha) * (level + trend);
+    trend = beta * (level - prevLevel) + (1 - beta) * trend;
+    seasonals[i % m] = gamma * (history[i] - level) + (1 - gamma) * s;
+  }
+
+  const forecast: number[] = [];
+  for (let h = 1; h <= horizon; h++) {
+    const s = seasonals[(n + h - 1) % m];
+    forecast.push(Math.max(0, level + h * trend + s));
+  }
+  return { name: "Exponential Smoothing", forecast, applicable: true };
 }
 
 // Croston's method for intermittent demand
