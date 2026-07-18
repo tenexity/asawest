@@ -17,6 +17,7 @@ import Chat from "./pages/Chat";
 import Auth from "./pages/Auth";
 import Settings from "./pages/Settings";
 import Users from "./pages/Users";
+import Balance from "./pages/Balance";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
