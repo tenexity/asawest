@@ -306,9 +306,11 @@ export default function Dashboard() {
 
       {/* Branch comparison */}
       <Card className="p-0 overflow-hidden" data-tour="branch-comparison">
-
-        <div className="px-4 py-3 border-b">
+        <div className="px-4 py-3 border-b flex items-center justify-between">
           <h2 className="font-semibold">Branch Comparison</h2>
+          <Link to="/network" className="text-xs text-primary hover:underline">
+            View network graph →
+          </Link>
         </div>
         <Table>
           <TableHeader>
@@ -330,8 +332,20 @@ export default function Dashboard() {
               </TableRow>
             )}
             {branchRows.map((r) => (
-              <TableRow key={r.id}>
-                <TableCell className="font-medium">{r.name}</TableCell>
+              <TableRow
+                key={r.id}
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => (window.location.href = `/skus?branch=${r.id}`)}
+              >
+                <TableCell className="font-medium">
+                  <Link
+                    to={`/skus?branch=${r.id}`}
+                    className="hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {r.name}
+                  </Link>
+                </TableCell>
                 <TableCell
                   className={cn(
                     "text-right tabular-nums",
@@ -357,6 +371,7 @@ export default function Dashboard() {
           </TableBody>
         </Table>
       </Card>
+
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
