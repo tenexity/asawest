@@ -91,9 +91,10 @@ Deno.serve(async (req) => {
     // Build rows for the last `days` days that aren't already present
     const rows: Array<{
       product_id: string; branch_id: string; sale_date: string;
-      quantity: number; customer_type: string; sale_price: number;
+      quantity: number; customer_type: string; is_will_call: boolean;
     }> = [];
-    const customerTypes = ["contractor", "commercial", "diy"];
+    // Must match the customer_type enum in the database.
+    const customerTypes = ["contractor", "commercial", "residential"];
 
     for (let i = days - 1; i >= 0; i--) {
       const d = new Date(now); d.setUTCDate(d.getUTCDate() - i);
