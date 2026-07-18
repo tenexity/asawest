@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Boxes,
   ClipboardList,
+  Scale,
   Network,
   Bot,
   Sparkles,
