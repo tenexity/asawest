@@ -57,6 +57,15 @@ const priorityColor: Record<Redeploy["priority_label"], string> = {
 type CacheEntry = { releases: Release[]; redeploys: Redeploy[]; totals: Totals | null; ts: number };
 const balanceCache: Record<string, CacheEntry> = {};
 
+function formatAge(ts: number): string {
+  const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  return `${h}h ago`;
+}
+
 export default function Balance() {
   const { branchId } = useBranch();
   const cacheKey = branchId ?? "all";
