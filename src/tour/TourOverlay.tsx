@@ -200,3 +200,15 @@ function placeCard(rect: Rect, vp: { w: number; h: number }, placement?: TourSte
 function clamp(n: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, n));
 }
+
+// "Tour · Step 3a of 8" — a/b/c letters when a major step has sub-steps.
+function buildStepLabel(index: number, _total: number) {
+  const step = TOUR_STEPS[index];
+  const groupIds = Array.from(new Set(TOUR_STEPS.map((s) => s.group)));
+  const groupTotal = groupIds.length;
+  const sameGroup = TOUR_STEPS.filter((s) => s.group === step.group);
+  const posInGroup = sameGroup.findIndex((s) => s.id === step.id);
+  const suffix = sameGroup.length > 1 ? String.fromCharCode(97 + posInGroup) : "";
+  return `Tour · Step ${step.group}${suffix} of ${groupTotal}`;
+}
+
