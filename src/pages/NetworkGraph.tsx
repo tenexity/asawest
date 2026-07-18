@@ -76,7 +76,7 @@ export default function NetworkGraph() {
   const [loading, setLoading] = useState(true);
   const [filterBranch, setFilterBranch] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>(initialCategory);
-  const [criticalOnly, setCriticalOnly] = useState(false);
+  const [criticalOnly, setCriticalOnly] = useState(true);
   const [selected, setSelected] = useState<{ label: string; meta: any } | null>(null);
 
   // Simulator
