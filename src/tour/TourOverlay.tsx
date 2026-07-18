@@ -179,15 +179,19 @@ function placeCard(rect: Rect, vp: { w: number; h: number }, placement?: TourSte
     top = rect.top + rect.height + M;
     left = clamp(rect.left + rect.width / 2 - CARD_W / 2, M, vp.w - CARD_W - M);
   } else if (preferred === "top") {
-    top = Math.max(M, rect.top - CARD_H - M);
+    top = rect.top - CARD_H - M;
     left = clamp(rect.left + rect.width / 2 - CARD_W / 2, M, vp.w - CARD_W - M);
   } else if (preferred === "right") {
     top = clamp(rect.top + rect.height / 2 - CARD_H / 2, M, vp.h - CARD_H - M);
-    left = Math.min(vp.w - CARD_W - M, rect.left + rect.width + M);
+    left = rect.left + rect.width + M;
   } else {
     top = clamp(rect.top + rect.height / 2 - CARD_H / 2, M, vp.h - CARD_H - M);
-    left = Math.max(M, rect.left - CARD_W - M);
+    left = rect.left - CARD_W - M;
   }
+  // Final clamp so the card always stays fully inside the viewport,
+  // even when the target is very large or near an edge.
+  top = clamp(top, M, Math.max(M, vp.h - CARD_H - M));
+  left = clamp(left, M, Math.max(M, vp.w - CARD_W - M));
   return { top, left };
 }
 
