@@ -274,6 +274,17 @@ export default function Balance() {
         </Card>
       </div>
 
+      {/* Loading banner */}
+      {loading && (
+        <Card className="p-3 flex items-center gap-3 border-primary/30 bg-primary/5">
+          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+          <div className="text-sm">
+            Crunching excess stock and stockout risk across the network…
+            <span className="text-muted-foreground"> This can take 10–20 seconds on first load.</span>
+          </div>
+        </Card>
+      )}
+
       {/* Actions */}
       <div className="flex flex-wrap items-center gap-2">
         <Button
@@ -288,6 +299,21 @@ export default function Balance() {
           <Download className="h-4 w-4 mr-2" /> Export CSV
         </Button>
         <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => loadData(true)}
+          disabled={loading}
+          title="Recompute from the latest data"
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
+        {lastUpdated && (
+          <span className="text-xs text-muted-foreground">
+            Updated {formatAge(lastUpdated)}
+          </span>
+        )}
+        <Button
           variant="default"
           className="ml-auto"
           onClick={() => setConfirmOpen(true)}
@@ -296,6 +322,7 @@ export default function Balance() {
           <CheckCircle2 className="h-4 w-4 mr-2" /> Approve Plan
         </Button>
       </div>
+
 
       {plan && (
         <Card className="p-5 border-primary/30 bg-primary/5">
