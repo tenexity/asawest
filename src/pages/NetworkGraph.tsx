@@ -460,11 +460,13 @@ export default function NetworkGraph() {
           <Skeleton className="h-full w-full" />
         ) : (
           <ReactFlow
+            key={`${filterBranch}|${filterCategory}|${criticalOnly}`}
             nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             fitView
+            fitViewOptions={{ padding: 0.15 }}
             onNodeClick={(_, n: any) =>
               setSelected({ label: n.data.label, meta: n.data })
             }
