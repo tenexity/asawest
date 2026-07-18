@@ -157,8 +157,8 @@ function placeCard(rect: Rect, vp: { w: number; h: number }, placement?: TourSte
 
   let top = 0, left = 0;
   const fits = { bottom: spaceBelow >= CARD_H + M, top: spaceAbove >= CARD_H + M, right: spaceRight >= CARD_W + M, left: spaceLeft >= CARD_W + M };
-  const order: Array<"bottom" | "top" | "right" | "left"> = placement && placement !== "center"
-    ? [placement, "bottom", "top", "right", "left"]
+  const order: Array<"bottom" | "top" | "right" | "left"> = placement
+    ? [placement as any, "bottom", "top", "right", "left"]
     : ["bottom", "top", "right", "left"];
   const preferred = order.find((p) => fits[p]) ?? "bottom";
 
