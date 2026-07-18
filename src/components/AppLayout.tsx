@@ -1,18 +1,13 @@
-import { Outlet, Navigate } from "react-router-dom";
+import { Outlet } from "react-router-dom";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { TopBar } from "@/components/TopBar";
 import { BranchProvider } from "@/contexts/BranchContext";
 import { DemoProvider } from "@/contexts/DemoContext";
 import { DemoPanel } from "@/components/DemoPanel";
-import { useAuth } from "@/hooks/useAuth";
 import { TourProvider } from "@/tour/TourProvider";
 
 export default function AppLayout() {
-  const { session, loading } = useAuth();
-  if (loading) return null;
-  if (!session) return <Navigate to="/auth" replace />;
-
   return (
     <BranchProvider>
       <DemoProvider>
