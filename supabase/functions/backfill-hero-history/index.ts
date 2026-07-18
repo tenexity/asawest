@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
       quantity: number; customer_type: string; is_will_call: boolean;
     }> = [];
     // Must match the customer_type enum in the database.
-    const customerTypes = ["contractor", "commercial", "residential"];
+    const customerTypes = ["contractor", "walk_in", "project", "builder", "service_company"];
 
     for (let i = days - 1; i >= 0; i--) {
       const d = new Date(now); d.setUTCDate(d.getUTCDate() - i);
