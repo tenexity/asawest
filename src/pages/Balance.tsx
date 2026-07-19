@@ -258,11 +258,24 @@ export default function Balance() {
   }, [loadData]);
 
 
-  const netFreed = useMemo(
-    () => Math.max((totals?.cash_freed ?? 0) - (totals?.cash_needed ?? 0), 0),
-    [totals],
+  const enrichedReleases = useMemo(() => releases.map(enrichRelease), [releases]);
+
+  // Recompute honest totals from the enriched, per-row math.
+  const cashRecovered = useMemo(
+    () => enrichedReleases.filter((r) => r.isRealCash).reduce((s, r) => s + r.valueImpact, 0),
+    [enrichedReleases],
   );
-  const marginLift = useMemo(() => netFreed * 0.35, [netFreed]); // assumed 35% margin on redeploy
+  const capitalRepositioned = useMemo(
+    () => enrichedReleases.filter((r) => !r.isRealCash).reduce((s, r) => s + r.valueImpact, 0),
+    [enrichedReleases],
+  );
+  const capitalTied = useMemo(
+    () => enrichedReleases.reduce((s, r) => s + r.tied_capital, 0),
+    [enrichedReleases],
+  );
+  const cashNeeded = totals?.cash_needed ?? 0;
+  const netFreed = useMemo(() => Math.max(cashRecovered - cashNeeded, 0), [cashRecovered, cashNeeded]);
+  const marginLift = useMemo(() => netFreed * 0.35, [netFreed]);
 
   async function generatePlan() {
     setPlanLoading(true);
