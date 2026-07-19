@@ -530,32 +530,44 @@ export default function Balance() {
                 <TableRow>
                   <TableHead>SKU</TableHead>
                   <TableHead>Branch</TableHead>
-                  <TableHead className="text-right">Qty</TableHead>
+                  <TableHead className="text-right">Action qty</TableHead>
                   <TableHead>Disposition</TableHead>
-                  <TableHead className="text-right">Recovers</TableHead>
+                  <TableHead className="text-right">$ impact</TableHead>
+                  <TableHead className="w-[70px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading && (
-                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
                 )}
-                {!loading && releases.length === 0 && (
-                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No excess SKUs at this branch.</TableCell></TableRow>
+                {!loading && enrichedReleases.length === 0 && (
+                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No excess SKUs at this branch.</TableCell></TableRow>
                 )}
-                {releases.map((r, i) => (
+                {enrichedReleases.map((r, i) => (
                   <TableRow key={`${r.product_id}-${r.branch_id}-${i}`}>
                     <TableCell>
                       <div className="font-medium">{r.sku}</div>
                       <div className="text-xs text-muted-foreground truncate max-w-[220px]">{r.description}</div>
                     </TableCell>
                     <TableCell className="text-xs">{r.branch_name}</TableCell>
-                    <TableCell className="text-right tabular-nums">{r.on_hand.toLocaleString()}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {r.actionQty.toLocaleString()}
+                      {r.actionQty !== r.on_hand && (
+                        <div className="text-[10px] text-muted-foreground">of {r.on_hand.toLocaleString()} on-hand</div>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={dispositionColor[r.disposition]}>{r.disposition}</Badge>
                       <div className="text-xs text-muted-foreground mt-1 max-w-[200px]">{r.disposition_detail}</div>
                     </TableCell>
-                    <TableCell className="text-right tabular-nums font-medium text-emerald-600">
-                      {fmt$(r.recoverable_cash)}
+                    <TableCell className="text-right tabular-nums font-medium">
+                      <div className={r.isRealCash ? "text-emerald-600" : "text-blue-600 dark:text-blue-400"}>
+                        {fmt$(r.valueImpact)}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground font-normal">{r.valueLabel}</div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <RationaleButton row={r} />
                     </TableCell>
                   </TableRow>
                 ))}
