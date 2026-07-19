@@ -8,11 +8,13 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Scale, Sparkles, Loader2, Download, CheckCircle2, ArrowRight, ArrowLeft, RefreshCw } from "lucide-react";
+import { Scale, Sparkles, Loader2, Download, CheckCircle2, ArrowRight, ArrowLeft, RefreshCw, HelpCircle, Info } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Release = {
   sku: string; description: string; category: string;
