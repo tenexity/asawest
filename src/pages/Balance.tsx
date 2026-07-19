@@ -870,29 +870,135 @@ export default function Balance() {
                   <TableHead className="text-right">Short</TableHead>
                   <TableHead>Priority</TableHead>
                   <TableHead className="text-right">Cash needed</TableHead>
+                  <TableHead className="w-8"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading && (
-                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
                 )}
                 {!loading && redeploys.length === 0 && (
-                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No stockout risk at this branch.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No stockout risk at this branch.</TableCell></TableRow>
                 )}
-                {redeploys.map((r, i) => (
-                  <TableRow key={`${r.product_id}-${r.branch_id}-${i}`}>
-                    <TableCell>
-                      <div className="font-medium">{r.sku}</div>
-                      <div className="text-xs text-muted-foreground truncate max-w-[220px]">{r.description}</div>
-                    </TableCell>
-                    <TableCell className="text-xs">{r.branch_name}</TableCell>
-                    <TableCell className="text-right tabular-nums">{r.units_short.toLocaleString()}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={priorityColor[r.priority_label]}>{r.priority_label}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums font-medium">{fmt$(r.cash_needed)}</TableCell>
-                  </TableRow>
-                ))}
+                {redeploys.map((r, i) => {
+                  const incoming = incomingByPair[`${r.product_id}|${r.branch_id}`] ?? [];
+                  const incomingQty = incoming.reduce((s, x) => s + x.qty, 0);
+                  const covered = r.units_short > 0 ? Math.min(1, incomingQty / r.units_short) : 0;
+                  const remainingShort = Math.max(0, r.units_short - incomingQty);
+                  const cashStillNeeded = Math.max(0, r.cash_needed - incomingQty * (r.unit_cost || 0));
+                  const dailyDemand = r.qty30 / 30;
+                  const daysToStockout = dailyDemand > 0 ? (r.on_hand / dailyDemand) : 999;
+                  const revenue14 = dailyDemand * 14 * (r.unit_cost || 0);
+                  return (
+                    <TableRow key={`${r.product_id}-${r.branch_id}-${i}`}>
+                      <TableCell>
+                        <div className="font-medium">{r.sku}</div>
+                        <div className="text-xs text-muted-foreground truncate max-w-[220px]">{r.description}</div>
+                      </TableCell>
+                      <TableCell className="text-xs">{r.branch_name}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        <div>{r.units_short.toLocaleString()}</div>
+                        {incomingQty > 0 && (
+                          <div className="text-[10px] text-blue-600 dark:text-blue-400">
+                            −{incomingQty.toLocaleString()} incoming ({Math.round(covered * 100)}%)
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={priorityColor[r.priority_label]}>{r.priority_label}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums font-medium">
+                        <div>{fmt$(r.cash_needed)}</div>
+                        {incomingQty > 0 && cashStillNeeded < r.cash_needed && (
+                          <div className="text-[10px] text-emerald-600">
+                            → {fmt$(cashStillNeeded)} after transfer
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" title="Why this recommendation?">
+                              <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent align="end" className="w-96 text-xs space-y-3">
+                            <div>
+                              <div className="font-semibold text-sm">Why this SKU is on the redeploy list</div>
+                              <div className="text-muted-foreground mt-0.5">
+                                {r.branch_name} · <span className="font-mono">{r.sku}</span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <div className="font-semibold uppercase tracking-wide text-[10px] text-muted-foreground">Shortage math</div>
+                              <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 tabular-nums">
+                                <span>On hand</span><span className="text-right">{r.on_hand.toLocaleString()}</span>
+                                <span>Reorder point</span><span className="text-right">{r.reorder_point.toLocaleString()}</span>
+                                <span>Units short</span><span className="text-right font-medium">{r.units_short.toLocaleString()}</span>
+                                <span>Sold last 30d</span><span className="text-right">{r.qty30.toLocaleString()}</span>
+                                <span>Avg daily demand</span><span className="text-right">{dailyDemand.toFixed(1)}</span>
+                                <span>Days to stockout</span><span className="text-right">{daysToStockout >= 999 ? "—" : daysToStockout.toFixed(1)}</span>
+                                <span>Unit cost</span><span className="text-right">${(r.unit_cost || 0).toFixed(2)}</span>
+                                <span>Cash needed</span><span className="text-right font-medium">{fmt$(r.cash_needed)}</span>
+                              </div>
+                              <div className="text-muted-foreground text-[11px] pt-1">
+                                Cash needed = units short × unit cost = {r.units_short.toLocaleString()} × ${(r.unit_cost || 0).toFixed(2)}
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <div className="font-semibold uppercase tracking-wide text-[10px] text-muted-foreground">Priority score</div>
+                              <div className="text-[11px]">
+                                <span className="font-medium">{r.priority_label}</span> — 14-day revenue at risk ≈ <b>{fmt$(revenue14)}</b>
+                                <div className="text-muted-foreground mt-0.5">
+                                  ({dailyDemand.toFixed(1)}/day × 14 days × ${(r.unit_cost || 0).toFixed(2)})
+                                </div>
+                              </div>
+                            </div>
+
+                            {incoming.length > 0 ? (
+                              <div className="space-y-1 border-t pt-2">
+                                <div className="font-semibold uppercase tracking-wide text-[10px] text-blue-600 dark:text-blue-400">
+                                  Impact of your Release plan
+                                </div>
+                                <div className="text-[11px]">
+                                  {incomingQty.toLocaleString()} units incoming from {incoming.length} branch{incoming.length === 1 ? "" : "es"} —
+                                  covers <b>{Math.round(covered * 100)}%</b> of the {r.units_short.toLocaleString()}-unit shortage.
+                                </div>
+                                <ul className="text-[11px] space-y-0.5 pl-3 list-disc">
+                                  {incoming.map((inc, idx) => (
+                                    <li key={idx}>
+                                      <b>{inc.qty.toLocaleString()}</b> from <b>{inc.from_branch_name}</b>
+                                      <span className="text-muted-foreground">
+                                        {" "}(their on-hand: {inc.source_on_hand_before.toLocaleString()} → {Math.max(0, inc.source_on_hand_after).toLocaleString()}
+                                        {inc.source_dos_before < 999 ? `, was ${inc.source_dos_before.toFixed(0)}d supply` : ", no local demand"})
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ul>
+                                {remainingShort > 0 ? (
+                                  <div className="text-[11px] pt-1">
+                                    Still short <b>{remainingShort.toLocaleString()}</b> units — needs <b>{fmt$(cashStillNeeded)}</b> in new PO or additional transfers.
+                                  </div>
+                                ) : (
+                                  <div className="text-[11px] pt-1 text-emerald-600">
+                                    ✓ Shortage fully covered by transfers — no PO needed.
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="border-t pt-2 text-[11px] text-muted-foreground">
+                                No transfer of this SKU is currently allocated to this branch. Fix by adding a transfer
+                                target in a matching Release row, or plan a PO for <b>{fmt$(r.cash_needed)}</b>.
+                              </div>
+                            )}
+                          </PopoverContent>
+                        </Popover>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
