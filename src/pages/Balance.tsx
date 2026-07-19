@@ -61,7 +61,7 @@ type Totals = {
   release_count: number; redeploy_count: number;
 };
 
-type LineKind = "transfer" | "markdown" | "return" | "bundle";
+type LineKind = "transfer" | "markdown" | "return" | "bundle" | "hold";
 
 type AllocationLine = {
   id: string;
