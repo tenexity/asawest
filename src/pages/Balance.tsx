@@ -83,6 +83,7 @@ const RECOVERY_RATE: Record<LineKind, number> = {
   markdown: 0.75,    // 25% markdown
   return:   0.85,    // 15% restock fee
   bundle:   1.00,    // sells with a fast mover
+  hold:     0,       // capital stays tied up by choice
 };
 
 const TIER_LABEL: Record<AbsorptionTarget["tier"], string> = {
