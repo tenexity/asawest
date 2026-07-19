@@ -66,6 +66,135 @@ function formatAge(ts: number): string {
   return `${h}h ago`;
 }
 
+type Rationale = { label: string; value: string; hint?: string };
+type EnrichedRelease = Release & {
+  actionQty: number;
+  valueImpact: number;
+  valueLabel: string;
+  isRealCash: boolean; // true = cash actually returns to bank; false = capital repositioned/avoided-loss
+  rationale: Rationale[];
+  logicSummary: string;
+};
+
+function enrichRelease(r: Release): EnrichedRelease {
+  const cost = r.unit_cost || 0;
+  const tied = r.on_hand * cost;
+  const dosLabel = r.dos >= 999 ? "no demand in last 30d" : `${Math.round(r.dos)} days of supply on hand`;
+
+  if (r.disposition === "Transfer" && r.transfer_target) {
+    const qty = Math.min(r.on_hand, r.transfer_target.units_short);
+    const capitalMoved = qty * cost;
+    // Avoided lost margin at destination (assume 35% gross margin on units that would have stocked out)
+    const avoidedLoss = capitalMoved * 0.35;
+    return {
+      ...r,
+      actionQty: qty,
+      valueImpact: capitalMoved,
+      valueLabel: "Capital repositioned",
+      isRealCash: false,
+      logicSummary: `Move ${qty.toLocaleString()} of ${r.on_hand.toLocaleString()} on-hand units to ${r.transfer_target.branch_name}, which is short ${r.transfer_target.units_short.toLocaleString()}. Cash does not return to the bank — inventory dollars simply relocate to where they will actually sell.`,
+      rationale: [
+        { label: "On-hand at source", value: `${r.on_hand.toLocaleString()} units (${dosLabel})` },
+        { label: "Shortage at destination", value: `${r.transfer_target.units_short.toLocaleString()} units short at ${r.transfer_target.branch_name}` },
+        { label: "Transfer qty (the min)", value: `${qty.toLocaleString()} units`, hint: "min(on-hand at source, units short at destination)" },
+        { label: "Unit cost", value: `$${cost.toFixed(2)}` },
+        { label: "Capital repositioned", value: `${qty.toLocaleString()} × $${cost.toFixed(2)} = $${Math.round(capitalMoved).toLocaleString()}`, hint: "Inventory dollars moved to a location that will sell them. NOT new cash in the bank." },
+        { label: "Est. avoided lost margin", value: `~$${Math.round(avoidedLoss).toLocaleString()}`, hint: "Assumes 35% gross margin on units that would have stocked out at destination." },
+      ],
+    };
+  }
+
+  if (r.disposition === "Return") {
+    const recovery = tied * 0.85;
+    return {
+      ...r,
+      actionQty: r.on_hand,
+      valueImpact: recovery,
+      valueLabel: "Cash refunded (est.)",
+      isRealCash: true,
+      logicSummary: `Return all ${r.on_hand.toLocaleString()} units to the primary supplier. Vendor rebate program or high reliability score qualifies this SKU for return, typically at ~85% of cost.`,
+      rationale: [
+        { label: "On-hand", value: `${r.on_hand.toLocaleString()} units (${dosLabel})` },
+        { label: "Tied-up capital", value: `${r.on_hand.toLocaleString()} × $${cost.toFixed(2)} = $${Math.round(tied).toLocaleString()}` },
+        { label: "Return recovery rate", value: "85%", hint: "Typical restocking fee applied by primary suppliers with rebate programs." },
+        { label: "Cash refunded", value: `$${Math.round(tied).toLocaleString()} × 0.85 = $${Math.round(recovery).toLocaleString()}`, hint: "Real cash returned to your account." },
+      ],
+    };
+  }
+
+  if (r.disposition === "Bundle" && r.bundle_target) {
+    const revenue = tied; // assume sold-through at cost value alongside a fast mover
+    return {
+      ...r,
+      actionQty: r.on_hand,
+      valueImpact: revenue,
+      valueLabel: "Revenue unlocked",
+      isRealCash: true,
+      logicSummary: `Bundle these ${r.on_hand.toLocaleString()} slow-moving units with fast mover ${r.bundle_target.sku} in the same category. The fast mover pulls the slow SKU through at close to full value.`,
+      rationale: [
+        { label: "On-hand", value: `${r.on_hand.toLocaleString()} units (${dosLabel})` },
+        { label: "Bundle partner", value: `${r.bundle_target.sku} — ${r.bundle_target.description}` },
+        { label: "Expected sell-through", value: "~100% of cost", hint: "Bundling a stuck SKU with a fast mover in the same category typically clears at close to book value with no markdown." },
+        { label: "Revenue unlocked", value: `$${Math.round(revenue).toLocaleString()}`, hint: "Cash comes in as the bundle sells over the next 30–60 days." },
+      ],
+    };
+  }
+
+  // Markdown
+  const recovery = tied * 0.75;
+  return {
+    ...r,
+    actionQty: r.on_hand,
+    valueImpact: recovery,
+    valueLabel: "Cash recovered (est.)",
+    isRealCash: true,
+    logicSummary: `No sister branch needs these units, supplier will not accept a return, and there is no fast-mover bundle. Clear at a 25% markdown to convert dead stock back into working capital.`,
+    rationale: [
+      { label: "On-hand", value: `${r.on_hand.toLocaleString()} units (${dosLabel})` },
+      { label: "Tied-up capital", value: `$${Math.round(tied).toLocaleString()}` },
+      { label: "Markdown depth", value: "25% off cost", hint: "Standard clearance depth to move dead stock within 30–60 days." },
+      { label: "Cash recovered", value: `$${Math.round(tied).toLocaleString()} × 0.75 = $${Math.round(recovery).toLocaleString()}`, hint: "Real cash from clearance sales. Recognizes a book loss but frees working capital." },
+    ],
+  };
+}
+
+function RationaleButton({ row }: { row: EnrichedRelease }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs gap-1">
+          <HelpCircle className="h-3 w-3" /> Why?
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent side="left" align="start" className="w-96">
+        <div className="space-y-3">
+          <div>
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">Logic — {row.sku} @ {row.branch_name}</div>
+            <div className="text-sm mt-1">{row.logicSummary}</div>
+          </div>
+          <div className="border-t pt-2 space-y-2">
+            {row.rationale.map((r, i) => (
+              <div key={i} className="text-xs">
+                <div className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">{r.label}</span>
+                  <span className="font-medium text-right tabular-nums">{r.value}</span>
+                </div>
+                {r.hint && <div className="text-[11px] text-muted-foreground italic mt-0.5">{r.hint}</div>}
+              </div>
+            ))}
+          </div>
+          {!row.isRealCash && (
+            <div className="border-t pt-2 text-[11px] text-amber-700 dark:text-amber-400 flex gap-1.5">
+              <Info className="h-3 w-3 mt-0.5 shrink-0" />
+              <span>This dollar amount is <b>inventory repositioned</b>, not cash returning to the bank. The win is preventing a stockout at the receiving branch.</span>
+            </div>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export default function Balance() {
   const { branchId } = useBranch();
   const cacheKey = branchId ?? "all";
