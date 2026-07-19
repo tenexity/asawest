@@ -212,6 +212,27 @@ export const TOUR_STEPS: TourStep[] = [
     why: "For the executive team: a board-ready narrative in 10 seconds instead of a 2-week analyst project.",
     placement: "bottom",
   },
+  {
+    id: "balance-allocation-tray",
+    group: 8,
+    route: "/balance",
+    target: '[data-tour="balance-columns"]',
+    title: "Every recommendation is fully editable — you make the final call",
+    body: "Expand any Release row to open the Allocation Tray. The system pre-fills a smart default — transfer to branches that are short, then absorb into branches with room up to a 180-day supply cap, then markdown or return whatever's left. You can override every line: change the quantity, split units across more branches, swap a markdown for a transfer, or drop in a 'Do nothing (hold)' pill when other factors say wait. A live 'Remaining' counter and per-branch headroom caps keep you from over-shipping, and Approve only unlocks once 100% of the on-hand quantity is accounted for.",
+    why: "For the Buyer + VP Ops: the algorithm proposes, the human decides. Instead of a rigid recommendation you accept or reject, you get an editable worksheet that respects real-world context (a customer promise, an incoming quote, a supplier relationship) while still enforcing the discipline of allocating every unit.",
+    placement: "top",
+  },
+  {
+    id: "balance-cross-impact",
+    group: 8,
+    route: "/balance",
+    target: '[data-tour="balance-columns"]',
+    title: "The two sides stay in sync — no double-counting",
+    body: "As you edit transfers on the Release (left) side, the Redeploy (right) side updates live: incoming units show as a badge on each shortage, the revised cash-still-needed recalculates, and each source branch's post-transfer on-hand is visible. Click 'Why?' on any Release or Redeploy row to see the full math — recovery rates (returns 85%, markdowns 75%), shortage formulas, priority scoring, and exactly how your Release plan is closing each gap.",
+    why: "For the CFO: cash recovered (actual bank refunds) is separated from capital repositioned (inventory moved to prevent stockouts), so the working-capital story is honest. For the Buyer: full transparency into every number, so decisions are defensible.",
+    placement: "top",
+  },
+
 
   // ── 9. Chat ─────────────────────────────────────────────────────
   {
