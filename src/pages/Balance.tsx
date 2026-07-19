@@ -4,17 +4,37 @@ import { useBranch } from "@/contexts/BranchContext";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Scale, Sparkles, Loader2, Download, CheckCircle2, ArrowRight, ArrowLeft, RefreshCw, HelpCircle, Info } from "lucide-react";
+import {
+  Scale, Sparkles, Loader2, Download, CheckCircle2, ArrowRight, ArrowLeft,
+  RefreshCw, HelpCircle, Info, ChevronDown, ChevronRight, Plus, X, RotateCcw,
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+// ---------- Types ----------
+type AbsorptionTarget = {
+  branch_id: string;
+  branch_name: string;
+  dest_on_hand: number;
+  dest_reorder_point: number;
+  velocity_per_day: number;
+  current_dos: number;
+  headroom_units: number;
+  tier: "covers_shortage" | "safety_cushion" | "slow_absorption";
+};
 
 type Release = {
   sku: string; description: string; category: string;
@@ -25,7 +45,9 @@ type Release = {
   transfer_target: { branch_id: string; branch_name: string; units_short: number } | null;
   bundle_target: { sku: string; description: string } | null;
   recoverable_cash: number;
+  absorption_targets: AbsorptionTarget[];
 };
+
 type Redeploy = {
   sku: string; description: string; category: string;
   branch_id: string; branch_name: string; product_id: string;
@@ -33,19 +55,50 @@ type Redeploy = {
   units_short: number; cash_needed: number; priority_score: number;
   priority_label: "Critical" | "Below ROP" | "Trending up";
 };
+
 type Totals = {
   cash_freed: number; capital_tied: number; cash_needed: number;
   release_count: number; redeploy_count: number;
 };
 
+type LineKind = "transfer" | "markdown" | "return" | "bundle";
+
+type AllocationLine = {
+  id: string;
+  kind: LineKind;
+  qty: number;
+  dest_branch_id?: string;
+  dest_branch_name?: string;
+  tier?: AbsorptionTarget["tier"];
+  headroom_cap?: number; // max qty this dest can absorb
+  bundle_sku?: string;
+};
+
+// ---------- Helpers ----------
 const fmt$ = (n: number) => `$${Math.round(n).toLocaleString()}`;
+const uid = () => Math.random().toString(36).slice(2, 9);
 
+const RECOVERY_RATE: Record<LineKind, number> = {
+  transfer: 0,       // no immediate cash — inventory repositioned
+  markdown: 0.75,    // 25% markdown
+  return:   0.85,    // 15% restock fee
+  bundle:   1.00,    // sells with a fast mover
+};
 
-const dispositionColor: Record<Release["disposition"], string> = {
-  Transfer: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/30",
-  Return:   "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
-  Bundle:   "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/30",
-  Markdown: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30",
+const TIER_LABEL: Record<AbsorptionTarget["tier"], string> = {
+  covers_shortage: "Covers shortage",
+  safety_cushion: "Safety cushion",
+  slow_absorption: "Slow absorption",
+};
+const TIER_COLOR: Record<AbsorptionTarget["tier"], string> = {
+  covers_shortage: "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/30",
+  safety_cushion:  "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30",
+  slow_absorption: "bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/30",
+};
+const TIER_DOT: Record<AbsorptionTarget["tier"], string> = {
+  covers_shortage: "🔴",
+  safety_cushion: "🟡",
+  slow_absorption: "🟢",
 };
 
 const priorityColor: Record<Redeploy["priority_label"], string> = {
@@ -54,8 +107,12 @@ const priorityColor: Record<Redeploy["priority_label"], string> = {
   "Trending up":"bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/30",
 };
 
-type CacheEntry = { releases: Release[]; redeploys: Redeploy[]; totals: Totals | null; ts: number };
-const balanceCache: Record<string, CacheEntry> = {};
+const kindColor: Record<LineKind, string> = {
+  transfer: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/30",
+  return:   "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
+  bundle:   "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/30",
+  markdown: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30",
+};
 
 function formatAge(ts: number): string {
   const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
@@ -66,134 +123,236 @@ function formatAge(ts: number): string {
   return `${h}h ago`;
 }
 
-type Rationale = { label: string; value: string; hint?: string };
-type EnrichedRelease = Release & {
-  actionQty: number;
-  valueImpact: number;
-  valueLabel: string;
-  isRealCash: boolean; // true = cash actually returns to bank; false = capital repositioned/avoided-loss
-  rationale: Rationale[];
-  logicSummary: string;
-};
+const releaseKey = (r: Release) => `${r.product_id}|${r.branch_id}`;
 
-function enrichRelease(r: Release): EnrichedRelease {
-  const cost = r.unit_cost || 0;
-  const tied = r.on_hand * cost;
-  const dosLabel = r.dos >= 999 ? "no demand in last 30d" : `${Math.round(r.dos)} days of supply on hand`;
+// Build a default allocation that mirrors the algorithm's recommendation for this release,
+// then routes the leftover on-hand to markdown so every unit is accounted for.
+function buildDefaultAllocation(r: Release): AllocationLine[] {
+  const lines: AllocationLine[] = [];
+  let remaining = r.on_hand;
 
   if (r.disposition === "Transfer" && r.transfer_target) {
-    const qty = Math.min(r.on_hand, r.transfer_target.units_short);
-    const capitalMoved = qty * cost;
-    // Avoided lost margin at destination (assume 35% gross margin on units that would have stocked out)
-    const avoidedLoss = capitalMoved * 0.35;
-    return {
-      ...r,
-      actionQty: qty,
-      valueImpact: capitalMoved,
-      valueLabel: "Capital repositioned",
-      isRealCash: false,
-      logicSummary: `Move ${qty.toLocaleString()} of ${r.on_hand.toLocaleString()} on-hand units to ${r.transfer_target.branch_name}, which is short ${r.transfer_target.units_short.toLocaleString()}. Cash does not return to the bank — inventory dollars simply relocate to where they will actually sell.`,
-      rationale: [
-        { label: "On-hand at source", value: `${r.on_hand.toLocaleString()} units (${dosLabel})` },
-        { label: "Shortage at destination", value: `${r.transfer_target.units_short.toLocaleString()} units short at ${r.transfer_target.branch_name}` },
-        { label: "Transfer qty (the min)", value: `${qty.toLocaleString()} units`, hint: "min(on-hand at source, units short at destination)" },
-        { label: "Unit cost", value: `$${cost.toFixed(2)}` },
-        { label: "Capital repositioned", value: `${qty.toLocaleString()} × $${cost.toFixed(2)} = $${Math.round(capitalMoved).toLocaleString()}`, hint: "Inventory dollars moved to a location that will sell them. NOT new cash in the bank." },
-        { label: "Est. avoided lost margin", value: `~$${Math.round(avoidedLoss).toLocaleString()}`, hint: "Assumes 35% gross margin on units that would have stocked out at destination." },
-      ],
-    };
+    const primaryMatch = r.absorption_targets.find(
+      (t) => t.branch_id === r.transfer_target!.branch_id,
+    );
+    const cap = primaryMatch?.headroom_units ?? r.transfer_target.units_short;
+    const qty = Math.min(remaining, r.transfer_target.units_short, cap || r.transfer_target.units_short);
+    if (qty > 0) {
+      lines.push({
+        id: uid(),
+        kind: "transfer",
+        qty,
+        dest_branch_id: r.transfer_target.branch_id,
+        dest_branch_name: r.transfer_target.branch_name,
+        tier: primaryMatch?.tier ?? "covers_shortage",
+        headroom_cap: primaryMatch?.headroom_units,
+      });
+      remaining -= qty;
+    }
+  } else if (r.disposition === "Return") {
+    lines.push({ id: uid(), kind: "return", qty: remaining });
+    remaining = 0;
+  } else if (r.disposition === "Bundle" && r.bundle_target) {
+    lines.push({ id: uid(), kind: "bundle", qty: remaining, bundle_sku: r.bundle_target.sku });
+    remaining = 0;
   }
 
-  if (r.disposition === "Return") {
-    const recovery = tied * 0.85;
-    return {
-      ...r,
-      actionQty: r.on_hand,
-      valueImpact: recovery,
-      valueLabel: "Cash refunded (est.)",
-      isRealCash: true,
-      logicSummary: `Return all ${r.on_hand.toLocaleString()} units to the primary supplier. Vendor rebate program or high reliability score qualifies this SKU for return, typically at ~85% of cost.`,
-      rationale: [
-        { label: "On-hand", value: `${r.on_hand.toLocaleString()} units (${dosLabel})` },
-        { label: "Tied-up capital", value: `${r.on_hand.toLocaleString()} × $${cost.toFixed(2)} = $${Math.round(tied).toLocaleString()}` },
-        { label: "Return recovery rate", value: "85%", hint: "Typical restocking fee applied by primary suppliers with rebate programs." },
-        { label: "Cash refunded", value: `$${Math.round(tied).toLocaleString()} × 0.85 = $${Math.round(recovery).toLocaleString()}`, hint: "Real cash returned to your account." },
-      ],
-    };
+  if (remaining > 0) {
+    lines.push({ id: uid(), kind: "markdown", qty: remaining });
   }
-
-  if (r.disposition === "Bundle" && r.bundle_target) {
-    const revenue = tied; // assume sold-through at cost value alongside a fast mover
-    return {
-      ...r,
-      actionQty: r.on_hand,
-      valueImpact: revenue,
-      valueLabel: "Revenue unlocked",
-      isRealCash: true,
-      logicSummary: `Bundle these ${r.on_hand.toLocaleString()} slow-moving units with fast mover ${r.bundle_target.sku} in the same category. The fast mover pulls the slow SKU through at close to full value.`,
-      rationale: [
-        { label: "On-hand", value: `${r.on_hand.toLocaleString()} units (${dosLabel})` },
-        { label: "Bundle partner", value: `${r.bundle_target.sku} — ${r.bundle_target.description}` },
-        { label: "Expected sell-through", value: "~100% of cost", hint: "Bundling a stuck SKU with a fast mover in the same category typically clears at close to book value with no markdown." },
-        { label: "Revenue unlocked", value: `$${Math.round(revenue).toLocaleString()}`, hint: "Cash comes in as the bundle sells over the next 30–60 days." },
-      ],
-    };
-  }
-
-  // Markdown
-  const recovery = tied * 0.75;
-  return {
-    ...r,
-    actionQty: r.on_hand,
-    valueImpact: recovery,
-    valueLabel: "Cash recovered (est.)",
-    isRealCash: true,
-    logicSummary: `No sister branch needs these units, supplier will not accept a return, and there is no fast-mover bundle. Clear at a 25% markdown to convert dead stock back into working capital.`,
-    rationale: [
-      { label: "On-hand", value: `${r.on_hand.toLocaleString()} units (${dosLabel})` },
-      { label: "Tied-up capital", value: `$${Math.round(tied).toLocaleString()}` },
-      { label: "Markdown depth", value: "25% off cost", hint: "Standard clearance depth to move dead stock within 30–60 days." },
-      { label: "Cash recovered", value: `$${Math.round(tied).toLocaleString()} × 0.75 = $${Math.round(recovery).toLocaleString()}`, hint: "Real cash from clearance sales. Recognizes a book loss but frees working capital." },
-    ],
-  };
+  return lines;
 }
 
-function RationaleButton({ row }: { row: EnrichedRelease }) {
+// ---------- AllocationTray ----------
+function AllocationTray({
+  release,
+  lines,
+  onChange,
+  onReset,
+}: {
+  release: Release;
+  lines: AllocationLine[];
+  onChange: (next: AllocationLine[]) => void;
+  onReset: () => void;
+}) {
+  const cost = release.unit_cost || 0;
+  const allocated = lines.reduce((s, l) => s + (Number.isFinite(l.qty) ? l.qty : 0), 0);
+  const remaining = release.on_hand - allocated;
+  const balanced = remaining === 0;
+
+  const usedDestIds = new Set(lines.map((l) => l.dest_branch_id).filter(Boolean));
+  const availableTargets = release.absorption_targets.filter((t) => !usedDestIds.has(t.branch_id));
+
+  function updateLine(id: string, patch: Partial<AllocationLine>) {
+    onChange(lines.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+  }
+  function removeLine(id: string) {
+    onChange(lines.filter((l) => l.id !== id));
+  }
+  function addTransfer(t: AbsorptionTarget) {
+    // Auto-suggest qty = min(remaining, headroom). If remaining is 0, seed 1 so user can raise it.
+    const seed = Math.max(1, Math.min(Math.max(remaining, 0) || 1, t.headroom_units));
+    onChange([
+      ...lines,
+      {
+        id: uid(),
+        kind: "transfer",
+        qty: seed,
+        dest_branch_id: t.branch_id,
+        dest_branch_name: t.branch_name,
+        tier: t.tier,
+        headroom_cap: t.headroom_units,
+      },
+    ]);
+  }
+  function addLine(kind: LineKind) {
+    onChange([...lines, { id: uid(), kind, qty: Math.max(remaining, 0) }]);
+  }
+
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs gap-1">
-          <HelpCircle className="h-3 w-3" /> Why?
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent side="left" align="start" className="w-96">
-        <div className="space-y-3">
-          <div>
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">Logic — {row.sku} @ {row.branch_name}</div>
-            <div className="text-sm mt-1">{row.logicSummary}</div>
-          </div>
-          <div className="border-t pt-2 space-y-2">
-            {row.rationale.map((r, i) => (
-              <div key={i} className="text-xs">
-                <div className="flex justify-between gap-3">
-                  <span className="text-muted-foreground">{r.label}</span>
-                  <span className="font-medium text-right tabular-nums">{r.value}</span>
-                </div>
-                {r.hint && <div className="text-[11px] text-muted-foreground italic mt-0.5">{r.hint}</div>}
-              </div>
-            ))}
-          </div>
-          {!row.isRealCash && (
-            <div className="border-t pt-2 text-[11px] text-amber-700 dark:text-amber-400 flex gap-1.5">
-              <Info className="h-3 w-3 mt-0.5 shrink-0" />
-              <span>This dollar amount is <b>inventory repositioned</b>, not cash returning to the bank. The win is preventing a stockout at the receiving branch.</span>
-            </div>
-          )}
+    <div className="bg-muted/20 border-t px-4 py-3 space-y-3">
+      <div className="flex items-center justify-between text-xs">
+        <div className="flex items-center gap-3">
+          <span className="text-muted-foreground">
+            Allocating <b className="text-foreground">{release.on_hand.toLocaleString()}</b> on-hand units @ ${cost.toFixed(2)}
+          </span>
+          <span className={`px-2 py-0.5 rounded font-medium tabular-nums ${
+            balanced ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                     : remaining > 0
+                       ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                       : "bg-red-500/15 text-red-700 dark:text-red-300"
+          }`}>
+            {balanced ? "✓ Balanced" : remaining > 0 ? `${remaining.toLocaleString()} unallocated` : `${Math.abs(remaining).toLocaleString()} over-allocated`}
+          </span>
         </div>
-      </PopoverContent>
-    </Popover>
+        <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={onReset}>
+          <RotateCcw className="h-3 w-3" /> Reset to recommendation
+        </Button>
+      </div>
+
+      <div className="space-y-2">
+        {lines.map((l) => {
+          const cashRecovered = l.kind === "transfer" ? 0 : Math.round(l.qty * cost * RECOVERY_RATE[l.kind]);
+          const capitalRepositioned = l.kind === "transfer" ? Math.round(l.qty * cost) : 0;
+          const overCap = l.kind === "transfer" && l.headroom_cap != null && l.qty > l.headroom_cap;
+
+          return (
+            <div key={l.id} className="flex flex-wrap items-center gap-2 text-xs bg-background rounded border p-2">
+              <Badge variant="outline" className={`${kindColor[l.kind]} shrink-0 capitalize`}>{l.kind}</Badge>
+
+              {l.kind === "transfer" && (
+                <span className="text-muted-foreground shrink-0">→ <b className="text-foreground">{l.dest_branch_name}</b></span>
+              )}
+              {l.kind === "bundle" && l.bundle_sku && (
+                <span className="text-muted-foreground shrink-0">w/ <b className="text-foreground">{l.bundle_sku}</b></span>
+              )}
+
+              {l.tier && (
+                <Badge variant="outline" className={`${TIER_COLOR[l.tier]} text-[10px] shrink-0`}>
+                  {TIER_DOT[l.tier]} {TIER_LABEL[l.tier]}
+                </Badge>
+              )}
+
+              <div className="flex items-center gap-1 ml-auto shrink-0">
+                <Input
+                  type="number"
+                  min={0}
+                  value={l.qty}
+                  onChange={(e) => updateLine(l.id, { qty: Math.max(0, Number(e.target.value) || 0) })}
+                  className={`h-7 w-24 text-right tabular-nums ${overCap ? "border-red-500" : ""}`}
+                />
+                <span className="text-muted-foreground">units</span>
+              </div>
+
+              <div className="text-right tabular-nums w-32 shrink-0">
+                {l.kind === "transfer" ? (
+                  <div className="text-blue-600 dark:text-blue-400 font-medium">{fmt$(capitalRepositioned)}</div>
+                ) : (
+                  <div className="text-emerald-600 font-medium">{fmt$(cashRecovered)}</div>
+                )}
+                <div className="text-[10px] text-muted-foreground">
+                  {l.kind === "transfer" ? "repositioned" : "cash"}
+                </div>
+              </div>
+
+              {l.kind === "transfer" && l.headroom_cap != null && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className={`h-3 w-3 shrink-0 ${overCap ? "text-red-500" : "text-muted-foreground"}`} />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs text-xs">
+                    {overCap
+                      ? `Exceeds this branch's headroom of ${l.headroom_cap.toLocaleString()} units — would push them past 180 days of supply.`
+                      : `Max ${l.headroom_cap.toLocaleString()} units before this branch tips into excess (180 days of supply).`}
+                  </TooltipContent>
+                </Tooltip>
+              )}
+
+              <Button
+                variant="ghost" size="icon"
+                className="h-6 w-6 shrink-0"
+                onClick={() => removeLine(l.id)}
+                title="Remove line"
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex flex-wrap gap-2 pt-1">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" disabled={availableTargets.length === 0}>
+              <Plus className="h-3 w-3" /> Add transfer target
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-96">
+            <DropdownMenuLabel className="text-xs">Branches ranked by velocity — headroom respects 180-day cap</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {availableTargets.length === 0 && (
+              <div className="px-2 py-4 text-xs text-muted-foreground text-center">All eligible branches already added.</div>
+            )}
+            {availableTargets.map((t) => (
+              <DropdownMenuItem
+                key={t.branch_id}
+                className="flex flex-col items-start gap-0.5 py-2"
+                onClick={() => addTransfer(t)}
+              >
+                <div className="flex items-center gap-2 w-full">
+                  <span className="text-xs">{TIER_DOT[t.tier]}</span>
+                  <span className="font-medium text-sm">{t.branch_name}</span>
+                  <Badge variant="outline" className={`ml-auto text-[10px] ${TIER_COLOR[t.tier]}`}>
+                    {TIER_LABEL[t.tier]}
+                  </Badge>
+                </div>
+                <div className="text-[11px] text-muted-foreground pl-6">
+                  Sells {t.velocity_per_day.toFixed(1)}/day · {t.current_dos >= 999 ? "no demand" : `${t.current_dos.toFixed(0)}d of supply`} · absorbs up to <b>{t.headroom_units.toLocaleString()}</b> units
+                </div>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {!lines.some((l) => l.kind === "markdown") && (
+          <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => addLine("markdown")}>
+            <Plus className="h-3 w-3" /> Add markdown
+          </Button>
+        )}
+        {!lines.some((l) => l.kind === "return") && (
+          <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => addLine("return")}>
+            <Plus className="h-3 w-3" /> Add return
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }
+
+// ---------- Page ----------
+type CacheEntry = { releases: Release[]; redeploys: Redeploy[]; totals: Totals | null; ts: number };
+const balanceCache: Record<string, CacheEntry> = {};
 
 export default function Balance() {
   const { branchId } = useBranch();
@@ -210,7 +369,10 @@ export default function Balance() {
   const [approving, setApproving] = useState(false);
   const [, setNowTick] = useState(0);
 
-  // Tick every 30s so "updated Xm ago" refreshes.
+  // Per-release editable allocation state, keyed by product_id|branch_id.
+  const [allocations, setAllocations] = useState<Record<string, AllocationLine[]>>({});
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
   useEffect(() => {
     const id = setInterval(() => setNowTick((n) => n + 1), 30_000);
     return () => clearInterval(id);
@@ -257,25 +419,56 @@ export default function Balance() {
     void loadData(false);
   }, [loadData]);
 
+  // Seed / reseed allocations whenever the releases list changes.
+  useEffect(() => {
+    const next: Record<string, AllocationLine[]> = {};
+    for (const r of releases) {
+      next[releaseKey(r)] = buildDefaultAllocation(r);
+    }
+    setAllocations(next);
+    setExpanded({});
+  }, [releases]);
 
-  const enrichedReleases = useMemo(() => releases.map(enrichRelease), [releases]);
+  const setAllocation = (key: string, lines: AllocationLine[]) => {
+    setAllocations((s) => ({ ...s, [key]: lines }));
+  };
+  const resetAllocation = (r: Release) => {
+    setAllocation(releaseKey(r), buildDefaultAllocation(r));
+  };
 
-  // Recompute honest totals from the enriched, per-row math.
+  // ---- Live-computed totals from the editable allocations ----
+  const perReleaseSummary = useMemo(() => {
+    return releases.map((r) => {
+      const lines = allocations[releaseKey(r)] ?? [];
+      const cost = r.unit_cost || 0;
+      const allocated = lines.reduce((s, l) => s + (l.qty || 0), 0);
+      const cashRecovered = lines.reduce((s, l) =>
+        l.kind === "transfer" ? s : s + l.qty * cost * RECOVERY_RATE[l.kind], 0);
+      const repositioned = lines.reduce((s, l) => l.kind === "transfer" ? s + l.qty * cost : s, 0);
+      const overCap = lines.some((l) =>
+        l.kind === "transfer" && l.headroom_cap != null && l.qty > l.headroom_cap);
+      return { r, lines, allocated, cashRecovered, repositioned, remaining: r.on_hand - allocated, overCap };
+    });
+  }, [releases, allocations]);
+
+  const capitalTied = useMemo(
+    () => perReleaseSummary.reduce((s, x) => s + x.r.tied_capital, 0),
+    [perReleaseSummary],
+  );
   const cashRecovered = useMemo(
-    () => enrichedReleases.filter((r) => r.isRealCash).reduce((s, r) => s + r.valueImpact, 0),
-    [enrichedReleases],
+    () => perReleaseSummary.reduce((s, x) => s + x.cashRecovered, 0),
+    [perReleaseSummary],
   );
   const capitalRepositioned = useMemo(
-    () => enrichedReleases.filter((r) => !r.isRealCash).reduce((s, r) => s + r.valueImpact, 0),
-    [enrichedReleases],
-  );
-  const capitalTied = useMemo(
-    () => enrichedReleases.reduce((s, r) => s + r.tied_capital, 0),
-    [enrichedReleases],
+    () => perReleaseSummary.reduce((s, x) => s + x.repositioned, 0),
+    [perReleaseSummary],
   );
   const cashNeeded = totals?.cash_needed ?? 0;
   const netFreed = useMemo(() => Math.max(cashRecovered - cashNeeded, 0), [cashRecovered, cashNeeded]);
   const marginLift = useMemo(() => netFreed * 0.35, [netFreed]);
+
+  const allBalanced = perReleaseSummary.every((x) => x.remaining === 0 && !x.overCap);
+  const unbalancedCount = perReleaseSummary.filter((x) => x.remaining !== 0 || x.overCap).length;
 
   async function generatePlan() {
     setPlanLoading(true);
@@ -295,17 +488,24 @@ export default function Balance() {
 
   function exportCsv() {
     const rows: string[] = [];
-    rows.push("Side,SKU,Description,Branch,Qty/OnHand,Action,Dollars");
-    releases.forEach((r) => {
-      rows.push([
-        "Release",
-        r.sku,
-        JSON.stringify(r.description),
-        JSON.stringify(r.branch_name),
-        r.on_hand,
-        JSON.stringify(`${r.disposition}: ${r.disposition_detail}`),
-        Math.round(r.recoverable_cash),
-      ].join(","));
+    rows.push("Side,SKU,Description,SourceBranch,Kind,Qty,DestBranch,Tier,DollarImpact,Type");
+    perReleaseSummary.forEach(({ r, lines }) => {
+      const cost = r.unit_cost || 0;
+      lines.forEach((l) => {
+        const dollars = l.kind === "transfer" ? Math.round(l.qty * cost) : Math.round(l.qty * cost * RECOVERY_RATE[l.kind]);
+        rows.push([
+          "Release",
+          r.sku,
+          JSON.stringify(r.description),
+          JSON.stringify(r.branch_name),
+          l.kind,
+          l.qty,
+          JSON.stringify(l.dest_branch_name ?? ""),
+          l.tier ?? "",
+          dollars,
+          l.kind === "transfer" ? "repositioned" : "cash",
+        ].join(","));
+      });
     });
     redeploys.forEach((r) => {
       rows.push([
@@ -313,9 +513,12 @@ export default function Balance() {
         r.sku,
         JSON.stringify(r.description),
         JSON.stringify(r.branch_name),
+        "shortage",
         r.units_short,
-        JSON.stringify(r.priority_label),
+        "",
+        r.priority_label,
         Math.round(r.cash_needed),
+        "cash_needed",
       ].join(","));
     });
     const blob = new Blob([rows.join("\n")], { type: "text/csv" });
@@ -331,24 +534,33 @@ export default function Balance() {
     setApproving(true);
     try {
       const now = new Date().toISOString();
-      const markdowns = releases
-        .filter((r) => r.disposition === "Markdown")
-        .map((r) => ({
-          product_id: r.product_id,
-          branch_id: r.branch_id,
-          excess_qty: r.on_hand,
-          estimated_value: r.recoverable_cash,
-        }));
-      const transfers = releases
-        .filter((r) => r.disposition === "Transfer" && r.transfer_target)
-        .map((r) => ({
-          source_branch_id: r.branch_id,
-          dest_branch_id: r.transfer_target!.branch_id,
-          product_id: r.product_id,
-          quantity: Math.min(r.on_hand, r.transfer_target!.units_short),
-          status: "pending" as const,
-          expected_arrival: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10),
-        }));
+      const transfers: any[] = [];
+      const markdowns: any[] = [];
+      const arrivesOn = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+
+      perReleaseSummary.forEach(({ r, lines }) => {
+        lines.forEach((l) => {
+          if (l.qty <= 0) return;
+          if (l.kind === "transfer" && l.dest_branch_id) {
+            transfers.push({
+              source_branch_id: r.branch_id,
+              dest_branch_id: l.dest_branch_id,
+              product_id: r.product_id,
+              quantity: l.qty,
+              status: "pending" as const,
+              expected_arrival: arrivesOn,
+            });
+          } else if (l.kind === "markdown") {
+            markdowns.push({
+              product_id: r.product_id,
+              branch_id: r.branch_id,
+              excess_qty: l.qty,
+              estimated_value: l.qty * (r.unit_cost || 0) * RECOVERY_RATE.markdown,
+            });
+          }
+          // returns & bundles are advisory-only in v1, captured in audit payload
+        });
+      });
 
       if (markdowns.length) {
         const { error } = await supabase.from("markdown_candidates").insert(markdowns);
@@ -358,13 +570,20 @@ export default function Balance() {
         const { error } = await supabase.from("transfer_orders").insert(transfers);
         if (error) throw error;
       }
+
       const { error: auditErr } = await supabase.from("action_audit_log").insert({
         action_type: "sku_balance_plan",
         insight_type: "sku_balance_plan",
         insight_title: "SKU Balance — working-capital rebalance",
         financial_impact_usd: netFreed,
-        action_summary: `Freed ~${fmt$(totals?.cash_freed ?? 0)}, redeploying into ${redeploys.length} short SKUs. Created ${transfers.length} transfer(s), ${markdowns.length} markdown(s).`,
-        action_payload: { releases, redeploys, totals, generated_at: now } as any,
+        action_summary: `Created ${transfers.length} transfer(s) and ${markdowns.length} markdown(s). Cash recovered ~${fmt$(cashRecovered)}; inventory repositioned ~${fmt$(capitalRepositioned)}.`,
+        action_payload: {
+          allocations: perReleaseSummary.map(({ r, lines }) => ({
+            sku: r.sku, product_id: r.product_id, branch_id: r.branch_id, branch_name: r.branch_name,
+            on_hand: r.on_hand, unit_cost: r.unit_cost, lines,
+          })),
+          redeploys, totals, generated_at: now,
+        } as any,
         result_json: { transfers_created: transfers.length, markdowns_created: markdowns.length } as any,
         status: "success",
       } as any);
@@ -379,12 +598,15 @@ export default function Balance() {
     }
   }
 
-  const transferCount = releases.filter((r) => r.disposition === "Transfer").length;
-  const returnCount = releases.filter((r) => r.disposition === "Return").length;
-  const bundleCount = releases.filter((r) => r.disposition === "Bundle").length;
-  const markdownCount = releases.filter((r) => r.disposition === "Markdown").length;
+  // Roll-ups for the release column header + approve dialog
+  const totalLines = perReleaseSummary.reduce((s, x) => s + x.lines.length, 0);
+  const transferLines = perReleaseSummary.reduce((s, x) => s + x.lines.filter((l) => l.kind === "transfer" && l.qty > 0).length, 0);
+  const markdownLines = perReleaseSummary.reduce((s, x) => s + x.lines.filter((l) => l.kind === "markdown" && l.qty > 0).length, 0);
+  const returnLines = perReleaseSummary.reduce((s, x) => s + x.lines.filter((l) => l.kind === "return" && l.qty > 0).length, 0);
+  const bundleLines = perReleaseSummary.reduce((s, x) => s + x.lines.filter((l) => l.kind === "bundle" && l.qty > 0).length, 0);
 
   return (
+    <TooltipProvider delayDuration={100}>
     <div className="p-6 space-y-6">
       <div className="flex items-start gap-3">
         <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary grid place-items-center">
@@ -392,20 +614,20 @@ export default function Balance() {
         </div>
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">SKU Balance</h1>
-          <p className="text-sm text-muted-foreground max-w-2xl">
-            Recycle capital stuck in dead stock into the fast movers that keep stocking out.
-            Every row has a specific disposition — no vague &ldquo;reduce inventory&rdquo; directive.
+          <p className="text-sm text-muted-foreground max-w-3xl">
+            The system proposes a disposition for every excess SKU; you make the final call. Expand any row
+            to reshape the plan — shift units toward branches that will sell them at full margin instead of
+            discounting. Approve is unlocked once every SKU is fully allocated.
           </p>
         </div>
       </div>
 
       {/* Totals bar */}
-      <TooltipProvider delayDuration={100}>
       <div className="grid gap-3 md:grid-cols-4" data-tour="balance-totals">
         <Card className="p-4">
           <div className="text-xs uppercase tracking-wide text-muted-foreground">Capital in excess</div>
           <div className="text-2xl font-semibold mt-1">{fmt$(capitalTied)}</div>
-          <div className="text-xs text-muted-foreground mt-1">{enrichedReleases.length} SKUs tied up</div>
+          <div className="text-xs text-muted-foreground mt-1">{releases.length} SKUs tied up</div>
         </Card>
         <Card className="p-4">
           <div className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1">
@@ -413,14 +635,14 @@ export default function Balance() {
             <Tooltip>
               <TooltipTrigger asChild><Info className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
               <TooltipContent className="max-w-xs text-xs">
-                Real cash returning to the bank from Returns (85% of cost), Bundles (~100%), and Markdowns (75%).
+                Real cash returning to the bank from Returns (85%), Bundles (~100%), and Markdowns (75%).
                 <b> Transfers are NOT counted here</b> — they reposition inventory, they don't refund cash.
               </TooltipContent>
             </Tooltip>
           </div>
           <div className="text-2xl font-semibold mt-1 text-emerald-600">{fmt$(cashRecovered)}</div>
           <div className="text-xs text-muted-foreground mt-1">
-            + {fmt$(capitalRepositioned)} inventory repositioned via transfer
+            + {fmt$(capitalRepositioned)} repositioned via transfer
           </div>
         </Card>
         <Card className="p-4">
@@ -434,7 +656,7 @@ export default function Balance() {
             <Tooltip>
               <TooltipTrigger asChild><Info className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
               <TooltipContent className="max-w-xs text-xs">
-                Cash recovered − cash needed to restock. Margin lift assumes 35% gross margin on redeployed units over the next 30–60 days.
+                Cash recovered − cash needed to restock. Margin lift assumes 35% gross margin on redeployed units.
               </TooltipContent>
             </Tooltip>
           </div>
@@ -444,57 +666,52 @@ export default function Balance() {
           <div className="text-xs text-muted-foreground mt-1">Working-capital release, next 30–60 days</div>
         </Card>
       </div>
-      </TooltipProvider>
 
-      {/* Loading banner */}
       {loading && (
         <Card className="p-3 flex items-center gap-3 border-primary/30 bg-primary/5">
           <Loader2 className="h-4 w-4 animate-spin text-primary" />
           <div className="text-sm">
-            Crunching excess stock and stockout risk across the network…
-            <span className="text-muted-foreground"> This can take 10–20 seconds on first load.</span>
+            Crunching excess stock, absorption capacity, and stockout risk across the network…
           </div>
         </Card>
       )}
 
       {/* Actions */}
       <div className="flex flex-wrap items-center gap-2">
-        <Button
-          onClick={generatePlan}
-          disabled={planLoading || loading || releases.length === 0}
-          data-tour="balance-generate-btn"
-        >
+        <Button onClick={generatePlan} disabled={planLoading || loading || releases.length === 0} data-tour="balance-generate-btn">
           {planLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
           Generate AI Rebalance Plan
         </Button>
         <Button variant="outline" onClick={exportCsv} disabled={loading || releases.length === 0}>
           <Download className="h-4 w-4 mr-2" /> Export CSV
         </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => loadData(true)}
-          disabled={loading}
-          title="Recompute from the latest data"
-        >
+        <Button variant="ghost" size="sm" onClick={() => loadData(true)} disabled={loading} title="Recompute from the latest data">
           <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
           Refresh
         </Button>
         {lastUpdated && (
-          <span className="text-xs text-muted-foreground">
-            Updated {formatAge(lastUpdated)}
-          </span>
+          <span className="text-xs text-muted-foreground">Updated {formatAge(lastUpdated)}</span>
         )}
-        <Button
-          variant="default"
-          className="ml-auto"
-          onClick={() => setConfirmOpen(true)}
-          disabled={loading || (releases.length === 0 && redeploys.length === 0)}
-        >
-          <CheckCircle2 className="h-4 w-4 mr-2" /> Start the Process
-        </Button>
-      </div>
 
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="ml-auto">
+              <Button
+                variant="default"
+                onClick={() => setConfirmOpen(true)}
+                disabled={loading || releases.length === 0 || !allBalanced}
+              >
+                <CheckCircle2 className="h-4 w-4 mr-2" /> Start the Process
+              </Button>
+            </span>
+          </TooltipTrigger>
+          {!allBalanced && (
+            <TooltipContent className="text-xs">
+              {unbalancedCount} SKU{unbalancedCount === 1 ? "" : "s"} still {perReleaseSummary.some((x) => x.overCap) ? "over-allocated or over branch capacity" : "have unallocated units"} — resolve them to unlock Approve.
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </div>
 
       {plan && (
         <Card className="p-5 border-primary/30 bg-primary/5">
@@ -515,62 +732,90 @@ export default function Balance() {
           <div className="p-4 border-b bg-muted/40">
             <div className="flex items-center gap-2">
               <ArrowLeft className="h-4 w-4 text-emerald-600" />
-              <div className="font-semibold">Release <span className="text-muted-foreground font-normal">— excess → cash</span></div>
+              <div className="font-semibold">Release <span className="text-muted-foreground font-normal">— excess → cash & repositioned stock</span></div>
             </div>
-            <div className="mt-1 text-xs text-muted-foreground flex flex-wrap gap-2">
-              {transferCount > 0 && <span>{transferCount} transfer</span>}
-              {returnCount > 0 && <span>· {returnCount} return</span>}
-              {bundleCount > 0 && <span>· {bundleCount} bundle</span>}
-              {markdownCount > 0 && <span>· {markdownCount} markdown</span>}
+            <div className="mt-1 text-xs text-muted-foreground">
+              {totalLines} allocation lines · {transferLines} transfer · {markdownLines} markdown · {returnLines} return · {bundleLines} bundle. Click any row to edit.
             </div>
           </div>
-          <div className="max-h-[520px] overflow-auto">
+          <div className="max-h-[640px] overflow-auto">
             <Table>
               <TableHeader className="sticky top-0 bg-background z-10">
                 <TableRow>
+                  <TableHead className="w-8"></TableHead>
                   <TableHead>SKU</TableHead>
-                  <TableHead>Branch</TableHead>
-                  <TableHead className="text-right">Action qty</TableHead>
-                  <TableHead>Disposition</TableHead>
+                  <TableHead>Source branch</TableHead>
+                  <TableHead className="text-right">On hand</TableHead>
+                  <TableHead>Plan</TableHead>
                   <TableHead className="text-right">$ impact</TableHead>
-                  <TableHead className="w-[70px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading && (
                   <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
                 )}
-                {!loading && enrichedReleases.length === 0 && (
+                {!loading && perReleaseSummary.length === 0 && (
                   <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No excess SKUs at this branch.</TableCell></TableRow>
                 )}
-                {enrichedReleases.map((r, i) => (
-                  <TableRow key={`${r.product_id}-${r.branch_id}-${i}`}>
-                    <TableCell>
-                      <div className="font-medium">{r.sku}</div>
-                      <div className="text-xs text-muted-foreground truncate max-w-[220px]">{r.description}</div>
-                    </TableCell>
-                    <TableCell className="text-xs">{r.branch_name}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {r.actionQty.toLocaleString()}
-                      {r.actionQty !== r.on_hand && (
-                        <div className="text-[10px] text-muted-foreground">of {r.on_hand.toLocaleString()} on-hand</div>
+                {perReleaseSummary.map(({ r, lines, allocated, cashRecovered, repositioned, remaining, overCap }) => {
+                  const key = releaseKey(r);
+                  const isOpen = expanded[key] ?? false;
+                  const balanced = remaining === 0 && !overCap;
+                  return (
+                    <>
+                      <TableRow
+                        key={`${key}-row`}
+                        className="cursor-pointer hover:bg-muted/30"
+                        onClick={() => setExpanded((s) => ({ ...s, [key]: !isOpen }))}
+                      >
+                        <TableCell className="w-8">
+                          {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium">{r.sku}</div>
+                          <div className="text-xs text-muted-foreground truncate max-w-[220px]">{r.description}</div>
+                        </TableCell>
+                        <TableCell className="text-xs">{r.branch_name}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          <div>{r.on_hand.toLocaleString()}</div>
+                          <div className={`text-[10px] ${balanced ? "text-emerald-600" : "text-amber-600"}`}>
+                            {balanced ? "✓ balanced" : remaining > 0 ? `${remaining.toLocaleString()} left` : overCap ? "over cap" : `${Math.abs(remaining).toLocaleString()} over`}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {lines.filter((l) => l.qty > 0).slice(0, 3).map((l) => (
+                              <Badge key={l.id} variant="outline" className={`${kindColor[l.kind]} text-[10px] capitalize`}>
+                                {l.kind === "transfer" ? `→ ${l.dest_branch_name?.split(" ")[0]} ${l.qty.toLocaleString()}` : `${l.kind} ${l.qty.toLocaleString()}`}
+                              </Badge>
+                            ))}
+                            {lines.filter((l) => l.qty > 0).length > 3 && (
+                              <span className="text-[10px] text-muted-foreground">+{lines.filter((l) => l.qty > 0).length - 3}</span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          <div className="text-emerald-600 font-medium">{fmt$(cashRecovered)}</div>
+                          {repositioned > 0 && (
+                            <div className="text-[10px] text-blue-600 dark:text-blue-400">+ {fmt$(repositioned)} moved</div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                      {isOpen && (
+                        <TableRow key={`${key}-tray`}>
+                          <TableCell colSpan={6} className="p-0">
+                            <AllocationTray
+                              release={r}
+                              lines={lines}
+                              onChange={(next) => setAllocation(key, next)}
+                              onReset={() => resetAllocation(r)}
+                            />
+                          </TableCell>
+                        </TableRow>
                       )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={dispositionColor[r.disposition]}>{r.disposition}</Badge>
-                      <div className="text-xs text-muted-foreground mt-1 max-w-[200px]">{r.disposition_detail}</div>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums font-medium">
-                      <div className={r.isRealCash ? "text-emerald-600" : "text-blue-600 dark:text-blue-400"}>
-                        {fmt$(r.valueImpact)}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground font-normal">{r.valueLabel}</div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <RationaleButton row={r} />
-                    </TableCell>
-                  </TableRow>
-                ))}
+                    </>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
@@ -583,11 +828,9 @@ export default function Balance() {
               <ArrowRight className="h-4 w-4 text-primary" />
               <div className="font-semibold">Redeploy <span className="text-muted-foreground font-normal">— cash → fast movers</span></div>
             </div>
-            <div className="mt-1 text-xs text-muted-foreground">
-              Ranked by 14-day revenue at risk
-            </div>
+            <div className="mt-1 text-xs text-muted-foreground">Ranked by 14-day revenue at risk</div>
           </div>
-          <div className="max-h-[520px] overflow-auto">
+          <div className="max-h-[640px] overflow-auto">
             <Table>
               <TableHeader className="sticky top-0 bg-background z-10">
                 <TableRow>
@@ -616,9 +859,7 @@ export default function Balance() {
                     <TableCell>
                       <Badge variant="outline" className={priorityColor[r.priority_label]}>{r.priority_label}</Badge>
                     </TableCell>
-                    <TableCell className="text-right tabular-nums font-medium">
-                      {fmt$(r.cash_needed)}
-                    </TableCell>
+                    <TableCell className="text-right tabular-nums font-medium">{fmt$(r.cash_needed)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -633,25 +874,25 @@ export default function Balance() {
           <DialogHeader>
             <DialogTitle>Approve the rebalance plan?</DialogTitle>
             <DialogDescription>
-              Here&rsquo;s exactly what will happen when you click Approve — nothing is sent to any supplier or customer.
+              Here&rsquo;s exactly what will happen — nothing is sent to any supplier or customer.
             </DialogDescription>
           </DialogHeader>
           <ul className="text-sm space-y-2">
             <li className="flex gap-2">
               <span className="text-primary">•</span>
-              <span><b>{transferCount}</b> inter-branch transfer(s) created in <b>pending</b> status. Warehouse staff must confirm pick &amp; ship.</span>
+              <span><b>{transferLines}</b> inter-branch transfer(s) created in <b>pending</b> status. Warehouse staff must confirm pick &amp; ship.</span>
             </li>
             <li className="flex gap-2">
               <span className="text-primary">•</span>
-              <span><b>{markdownCount}</b> markdown candidate(s) queued for merchandiser review. No prices change automatically.</span>
+              <span><b>{markdownLines}</b> markdown candidate(s) queued for merchandiser review. No prices change automatically.</span>
             </li>
             <li className="flex gap-2">
               <span className="text-primary">•</span>
-              <span><b>{returnCount}</b> return(s) and <b>{bundleCount}</b> bundle(s) flagged in the plan — these are advisory and require buyer follow-up with the supplier.</span>
+              <span><b>{returnLines}</b> return(s) and <b>{bundleLines}</b> bundle(s) captured in the audit payload — these are advisory and require buyer follow-up.</span>
             </li>
             <li className="flex gap-2">
               <span className="text-primary">•</span>
-              <span>One entry written to the audit log with the full plan payload for later review.</span>
+              <span>Your full edited allocation (including any deltas from the system's recommendation) is written to the audit log.</span>
             </li>
             <li className="flex gap-2 text-muted-foreground">
               <span>•</span>
@@ -668,5 +909,6 @@ export default function Balance() {
         </DialogContent>
       </Dialog>
     </div>
+    </TooltipProvider>
   );
 }
