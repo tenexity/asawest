@@ -347,6 +347,19 @@ function AllocationTray({
             <Plus className="h-3 w-3" /> Add return
           </Button>
         )}
+        {!lines.some((l) => l.kind === "hold") && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => addLine("hold")}>
+                <Plus className="h-3 w-3" /> Do nothing (hold)
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs text-xs">
+              Park units without any action — e.g. contracted job coming, seasonal ramp, supplier constraint.
+              Counts toward "balanced" but recovers no cash and doesn't reposition inventory.
+            </TooltipContent>
+          </Tooltip>
+        )}
       </div>
     </div>
   );
