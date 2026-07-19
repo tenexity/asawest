@@ -605,6 +605,37 @@ export default function Balance() {
   const returnLines = perReleaseSummary.reduce((s, x) => s + x.lines.filter((l) => l.kind === "return" && l.qty > 0).length, 0);
   const bundleLines = perReleaseSummary.reduce((s, x) => s + x.lines.filter((l) => l.kind === "bundle" && l.qty > 0).length, 0);
 
+  // ---- Cross-side impact map ----
+  // For each (product_id | dest_branch_id), sum incoming transfer units from all Release allocations,
+  // and remember what remains at the source branch after all its transfers ship.
+  type Incoming = {
+    from_branch_id: string;
+    from_branch_name: string;
+    qty: number;
+    source_on_hand_before: number;
+    source_on_hand_after: number;
+    source_dos_before: number;
+  };
+  const incomingByPair = useMemo(() => {
+    const m: Record<string, Incoming[]> = {};
+    perReleaseSummary.forEach(({ r, lines }) => {
+      const totalOut = lines.filter((x) => x.kind === "transfer" && x.qty > 0).reduce((s, x) => s + x.qty, 0);
+      lines.forEach((l) => {
+        if (l.kind !== "transfer" || !l.dest_branch_id || l.qty <= 0) return;
+        const key = `${r.product_id}|${l.dest_branch_id}`;
+        (m[key] ||= []).push({
+          from_branch_id: r.branch_id,
+          from_branch_name: r.branch_name,
+          qty: l.qty,
+          source_on_hand_before: r.on_hand,
+          source_on_hand_after: r.on_hand - totalOut,
+          source_dos_before: r.dos,
+        });
+      });
+    });
+    return m;
+  }, [perReleaseSummary]);
+
   return (
     <TooltipProvider delayDuration={100}>
     <div className="p-6 space-y-6">
