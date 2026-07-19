@@ -113,6 +113,7 @@ const kindColor: Record<LineKind, string> = {
   return:   "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
   bundle:   "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/30",
   markdown: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30",
+  hold:     "bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/30",
 };
 
 function formatAge(ts: number): string {
