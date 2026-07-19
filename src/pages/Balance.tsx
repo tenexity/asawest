@@ -8,11 +8,13 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Scale, Sparkles, Loader2, Download, CheckCircle2, ArrowRight, ArrowLeft, RefreshCw } from "lucide-react";
+import { Scale, Sparkles, Loader2, Download, CheckCircle2, ArrowRight, ArrowLeft, RefreshCw, HelpCircle, Info } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Release = {
   sku: string; description: string; category: string;
@@ -62,6 +64,135 @@ function formatAge(ts: number): string {
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
   return `${h}h ago`;
+}
+
+type Rationale = { label: string; value: string; hint?: string };
+type EnrichedRelease = Release & {
+  actionQty: number;
+  valueImpact: number;
+  valueLabel: string;
+  isRealCash: boolean; // true = cash actually returns to bank; false = capital repositioned/avoided-loss
+  rationale: Rationale[];
+  logicSummary: string;
+};
+
+function enrichRelease(r: Release): EnrichedRelease {
+  const cost = r.unit_cost || 0;
+  const tied = r.on_hand * cost;
+  const dosLabel = r.dos >= 999 ? "no demand in last 30d" : `${Math.round(r.dos)} days of supply on hand`;
+
+  if (r.disposition === "Transfer" && r.transfer_target) {
+    const qty = Math.min(r.on_hand, r.transfer_target.units_short);
+    const capitalMoved = qty * cost;
+    // Avoided lost margin at destination (assume 35% gross margin on units that would have stocked out)
+    const avoidedLoss = capitalMoved * 0.35;
+    return {
+      ...r,
+      actionQty: qty,
+      valueImpact: capitalMoved,
+      valueLabel: "Capital repositioned",
+      isRealCash: false,
+      logicSummary: `Move ${qty.toLocaleString()} of ${r.on_hand.toLocaleString()} on-hand units to ${r.transfer_target.branch_name}, which is short ${r.transfer_target.units_short.toLocaleString()}. Cash does not return to the bank — inventory dollars simply relocate to where they will actually sell.`,
+      rationale: [
+        { label: "On-hand at source", value: `${r.on_hand.toLocaleString()} units (${dosLabel})` },
+        { label: "Shortage at destination", value: `${r.transfer_target.units_short.toLocaleString()} units short at ${r.transfer_target.branch_name}` },
+        { label: "Transfer qty (the min)", value: `${qty.toLocaleString()} units`, hint: "min(on-hand at source, units short at destination)" },
+        { label: "Unit cost", value: `$${cost.toFixed(2)}` },
+        { label: "Capital repositioned", value: `${qty.toLocaleString()} × $${cost.toFixed(2)} = $${Math.round(capitalMoved).toLocaleString()}`, hint: "Inventory dollars moved to a location that will sell them. NOT new cash in the bank." },
+        { label: "Est. avoided lost margin", value: `~$${Math.round(avoidedLoss).toLocaleString()}`, hint: "Assumes 35% gross margin on units that would have stocked out at destination." },
+      ],
+    };
+  }
+
+  if (r.disposition === "Return") {
+    const recovery = tied * 0.85;
+    return {
+      ...r,
+      actionQty: r.on_hand,
+      valueImpact: recovery,
+      valueLabel: "Cash refunded (est.)",
+      isRealCash: true,
+      logicSummary: `Return all ${r.on_hand.toLocaleString()} units to the primary supplier. Vendor rebate program or high reliability score qualifies this SKU for return, typically at ~85% of cost.`,
+      rationale: [
+        { label: "On-hand", value: `${r.on_hand.toLocaleString()} units (${dosLabel})` },
+        { label: "Tied-up capital", value: `${r.on_hand.toLocaleString()} × $${cost.toFixed(2)} = $${Math.round(tied).toLocaleString()}` },
+        { label: "Return recovery rate", value: "85%", hint: "Typical restocking fee applied by primary suppliers with rebate programs." },
+        { label: "Cash refunded", value: `$${Math.round(tied).toLocaleString()} × 0.85 = $${Math.round(recovery).toLocaleString()}`, hint: "Real cash returned to your account." },
+      ],
+    };
+  }
+
+  if (r.disposition === "Bundle" && r.bundle_target) {
+    const revenue = tied; // assume sold-through at cost value alongside a fast mover
+    return {
+      ...r,
+      actionQty: r.on_hand,
+      valueImpact: revenue,
+      valueLabel: "Revenue unlocked",
+      isRealCash: true,
+      logicSummary: `Bundle these ${r.on_hand.toLocaleString()} slow-moving units with fast mover ${r.bundle_target.sku} in the same category. The fast mover pulls the slow SKU through at close to full value.`,
+      rationale: [
+        { label: "On-hand", value: `${r.on_hand.toLocaleString()} units (${dosLabel})` },
+        { label: "Bundle partner", value: `${r.bundle_target.sku} — ${r.bundle_target.description}` },
+        { label: "Expected sell-through", value: "~100% of cost", hint: "Bundling a stuck SKU with a fast mover in the same category typically clears at close to book value with no markdown." },
+        { label: "Revenue unlocked", value: `$${Math.round(revenue).toLocaleString()}`, hint: "Cash comes in as the bundle sells over the next 30–60 days." },
+      ],
+    };
+  }
+
+  // Markdown
+  const recovery = tied * 0.75;
+  return {
+    ...r,
+    actionQty: r.on_hand,
+    valueImpact: recovery,
+    valueLabel: "Cash recovered (est.)",
+    isRealCash: true,
+    logicSummary: `No sister branch needs these units, supplier will not accept a return, and there is no fast-mover bundle. Clear at a 25% markdown to convert dead stock back into working capital.`,
+    rationale: [
+      { label: "On-hand", value: `${r.on_hand.toLocaleString()} units (${dosLabel})` },
+      { label: "Tied-up capital", value: `$${Math.round(tied).toLocaleString()}` },
+      { label: "Markdown depth", value: "25% off cost", hint: "Standard clearance depth to move dead stock within 30–60 days." },
+      { label: "Cash recovered", value: `$${Math.round(tied).toLocaleString()} × 0.75 = $${Math.round(recovery).toLocaleString()}`, hint: "Real cash from clearance sales. Recognizes a book loss but frees working capital." },
+    ],
+  };
+}
+
+function RationaleButton({ row }: { row: EnrichedRelease }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs gap-1">
+          <HelpCircle className="h-3 w-3" /> Why?
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent side="left" align="start" className="w-96">
+        <div className="space-y-3">
+          <div>
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">Logic — {row.sku} @ {row.branch_name}</div>
+            <div className="text-sm mt-1">{row.logicSummary}</div>
+          </div>
+          <div className="border-t pt-2 space-y-2">
+            {row.rationale.map((r, i) => (
+              <div key={i} className="text-xs">
+                <div className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">{r.label}</span>
+                  <span className="font-medium text-right tabular-nums">{r.value}</span>
+                </div>
+                {r.hint && <div className="text-[11px] text-muted-foreground italic mt-0.5">{r.hint}</div>}
+              </div>
+            ))}
+          </div>
+          {!row.isRealCash && (
+            <div className="border-t pt-2 text-[11px] text-amber-700 dark:text-amber-400 flex gap-1.5">
+              <Info className="h-3 w-3 mt-0.5 shrink-0" />
+              <span>This dollar amount is <b>inventory repositioned</b>, not cash returning to the bank. The win is preventing a stockout at the receiving branch.</span>
+            </div>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export default function Balance() {
@@ -127,11 +258,24 @@ export default function Balance() {
   }, [loadData]);
 
 
-  const netFreed = useMemo(
-    () => Math.max((totals?.cash_freed ?? 0) - (totals?.cash_needed ?? 0), 0),
-    [totals],
+  const enrichedReleases = useMemo(() => releases.map(enrichRelease), [releases]);
+
+  // Recompute honest totals from the enriched, per-row math.
+  const cashRecovered = useMemo(
+    () => enrichedReleases.filter((r) => r.isRealCash).reduce((s, r) => s + r.valueImpact, 0),
+    [enrichedReleases],
   );
-  const marginLift = useMemo(() => netFreed * 0.35, [netFreed]); // assumed 35% margin on redeploy
+  const capitalRepositioned = useMemo(
+    () => enrichedReleases.filter((r) => !r.isRealCash).reduce((s, r) => s + r.valueImpact, 0),
+    [enrichedReleases],
+  );
+  const capitalTied = useMemo(
+    () => enrichedReleases.reduce((s, r) => s + r.tied_capital, 0),
+    [enrichedReleases],
+  );
+  const cashNeeded = totals?.cash_needed ?? 0;
+  const netFreed = useMemo(() => Math.max(cashRecovered - cashNeeded, 0), [cashRecovered, cashNeeded]);
+  const marginLift = useMemo(() => netFreed * 0.35, [netFreed]);
 
   async function generatePlan() {
     setPlanLoading(true);
@@ -256,30 +400,51 @@ export default function Balance() {
       </div>
 
       {/* Totals bar */}
+      <TooltipProvider delayDuration={100}>
       <div className="grid gap-3 md:grid-cols-4" data-tour="balance-totals">
         <Card className="p-4">
           <div className="text-xs uppercase tracking-wide text-muted-foreground">Capital in excess</div>
-          <div className="text-2xl font-semibold mt-1">{fmt$(totals?.capital_tied ?? 0)}</div>
-          <div className="text-xs text-muted-foreground mt-1">{totals?.release_count ?? 0} SKUs tied up</div>
+          <div className="text-2xl font-semibold mt-1">{fmt$(capitalTied)}</div>
+          <div className="text-xs text-muted-foreground mt-1">{enrichedReleases.length} SKUs tied up</div>
         </Card>
         <Card className="p-4">
-          <div className="text-xs uppercase tracking-wide text-muted-foreground">Recoverable cash</div>
-          <div className="text-2xl font-semibold mt-1 text-emerald-600">{fmt$(totals?.cash_freed ?? 0)}</div>
-          <div className="text-xs text-muted-foreground mt-1">After disposition haircut</div>
+          <div className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+            Cash recovered
+            <Tooltip>
+              <TooltipTrigger asChild><Info className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
+              <TooltipContent className="max-w-xs text-xs">
+                Real cash returning to the bank from Returns (85% of cost), Bundles (~100%), and Markdowns (75%).
+                <b> Transfers are NOT counted here</b> — they reposition inventory, they don't refund cash.
+              </TooltipContent>
+            </Tooltip>
+          </div>
+          <div className="text-2xl font-semibold mt-1 text-emerald-600">{fmt$(cashRecovered)}</div>
+          <div className="text-xs text-muted-foreground mt-1">
+            + {fmt$(capitalRepositioned)} inventory repositioned via transfer
+          </div>
         </Card>
         <Card className="p-4">
           <div className="text-xs uppercase tracking-wide text-muted-foreground">Cash to fix stockouts</div>
-          <div className="text-2xl font-semibold mt-1">{fmt$(totals?.cash_needed ?? 0)}</div>
+          <div className="text-2xl font-semibold mt-1">{fmt$(cashNeeded)}</div>
           <div className="text-xs text-muted-foreground mt-1">{totals?.redeploy_count ?? 0} SKUs below ROP</div>
         </Card>
         <Card className="p-4 border-primary/40 bg-primary/5">
-          <div className="text-xs uppercase tracking-wide text-muted-foreground">Net freed + est. margin lift</div>
+          <div className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+            Net freed + est. margin lift
+            <Tooltip>
+              <TooltipTrigger asChild><Info className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
+              <TooltipContent className="max-w-xs text-xs">
+                Cash recovered − cash needed to restock. Margin lift assumes 35% gross margin on redeployed units over the next 30–60 days.
+              </TooltipContent>
+            </Tooltip>
+          </div>
           <div className="text-2xl font-semibold mt-1 text-primary">
             {fmt$(netFreed)} <span className="text-base text-muted-foreground">+ {fmt$(marginLift)}</span>
           </div>
           <div className="text-xs text-muted-foreground mt-1">Working-capital release, next 30–60 days</div>
         </Card>
       </div>
+      </TooltipProvider>
 
       {/* Loading banner */}
       {loading && (
@@ -365,32 +530,44 @@ export default function Balance() {
                 <TableRow>
                   <TableHead>SKU</TableHead>
                   <TableHead>Branch</TableHead>
-                  <TableHead className="text-right">Qty</TableHead>
+                  <TableHead className="text-right">Action qty</TableHead>
                   <TableHead>Disposition</TableHead>
-                  <TableHead className="text-right">Recovers</TableHead>
+                  <TableHead className="text-right">$ impact</TableHead>
+                  <TableHead className="w-[70px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading && (
-                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
                 )}
-                {!loading && releases.length === 0 && (
-                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No excess SKUs at this branch.</TableCell></TableRow>
+                {!loading && enrichedReleases.length === 0 && (
+                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No excess SKUs at this branch.</TableCell></TableRow>
                 )}
-                {releases.map((r, i) => (
+                {enrichedReleases.map((r, i) => (
                   <TableRow key={`${r.product_id}-${r.branch_id}-${i}`}>
                     <TableCell>
                       <div className="font-medium">{r.sku}</div>
                       <div className="text-xs text-muted-foreground truncate max-w-[220px]">{r.description}</div>
                     </TableCell>
                     <TableCell className="text-xs">{r.branch_name}</TableCell>
-                    <TableCell className="text-right tabular-nums">{r.on_hand.toLocaleString()}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {r.actionQty.toLocaleString()}
+                      {r.actionQty !== r.on_hand && (
+                        <div className="text-[10px] text-muted-foreground">of {r.on_hand.toLocaleString()} on-hand</div>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={dispositionColor[r.disposition]}>{r.disposition}</Badge>
                       <div className="text-xs text-muted-foreground mt-1 max-w-[200px]">{r.disposition_detail}</div>
                     </TableCell>
-                    <TableCell className="text-right tabular-nums font-medium text-emerald-600">
-                      {fmt$(r.recoverable_cash)}
+                    <TableCell className="text-right tabular-nums font-medium">
+                      <div className={r.isRealCash ? "text-emerald-600" : "text-blue-600 dark:text-blue-400"}>
+                        {fmt$(r.valueImpact)}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground font-normal">{r.valueLabel}</div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <RationaleButton row={r} />
                     </TableCell>
                   </TableRow>
                 ))}
