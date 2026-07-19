@@ -400,30 +400,51 @@ export default function Balance() {
       </div>
 
       {/* Totals bar */}
+      <TooltipProvider delayDuration={100}>
       <div className="grid gap-3 md:grid-cols-4" data-tour="balance-totals">
         <Card className="p-4">
           <div className="text-xs uppercase tracking-wide text-muted-foreground">Capital in excess</div>
-          <div className="text-2xl font-semibold mt-1">{fmt$(totals?.capital_tied ?? 0)}</div>
-          <div className="text-xs text-muted-foreground mt-1">{totals?.release_count ?? 0} SKUs tied up</div>
+          <div className="text-2xl font-semibold mt-1">{fmt$(capitalTied)}</div>
+          <div className="text-xs text-muted-foreground mt-1">{enrichedReleases.length} SKUs tied up</div>
         </Card>
         <Card className="p-4">
-          <div className="text-xs uppercase tracking-wide text-muted-foreground">Recoverable cash</div>
-          <div className="text-2xl font-semibold mt-1 text-emerald-600">{fmt$(totals?.cash_freed ?? 0)}</div>
-          <div className="text-xs text-muted-foreground mt-1">After disposition haircut</div>
+          <div className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+            Cash recovered
+            <Tooltip>
+              <TooltipTrigger asChild><Info className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
+              <TooltipContent className="max-w-xs text-xs">
+                Real cash returning to the bank from Returns (85% of cost), Bundles (~100%), and Markdowns (75%).
+                <b> Transfers are NOT counted here</b> — they reposition inventory, they don't refund cash.
+              </TooltipContent>
+            </Tooltip>
+          </div>
+          <div className="text-2xl font-semibold mt-1 text-emerald-600">{fmt$(cashRecovered)}</div>
+          <div className="text-xs text-muted-foreground mt-1">
+            + {fmt$(capitalRepositioned)} inventory repositioned via transfer
+          </div>
         </Card>
         <Card className="p-4">
           <div className="text-xs uppercase tracking-wide text-muted-foreground">Cash to fix stockouts</div>
-          <div className="text-2xl font-semibold mt-1">{fmt$(totals?.cash_needed ?? 0)}</div>
+          <div className="text-2xl font-semibold mt-1">{fmt$(cashNeeded)}</div>
           <div className="text-xs text-muted-foreground mt-1">{totals?.redeploy_count ?? 0} SKUs below ROP</div>
         </Card>
         <Card className="p-4 border-primary/40 bg-primary/5">
-          <div className="text-xs uppercase tracking-wide text-muted-foreground">Net freed + est. margin lift</div>
+          <div className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+            Net freed + est. margin lift
+            <Tooltip>
+              <TooltipTrigger asChild><Info className="h-3 w-3 text-muted-foreground cursor-help" /></TooltipTrigger>
+              <TooltipContent className="max-w-xs text-xs">
+                Cash recovered − cash needed to restock. Margin lift assumes 35% gross margin on redeployed units over the next 30–60 days.
+              </TooltipContent>
+            </Tooltip>
+          </div>
           <div className="text-2xl font-semibold mt-1 text-primary">
             {fmt$(netFreed)} <span className="text-base text-muted-foreground">+ {fmt$(marginLift)}</span>
           </div>
           <div className="text-xs text-muted-foreground mt-1">Working-capital release, next 30–60 days</div>
         </Card>
       </div>
+      </TooltipProvider>
 
       {/* Loading banner */}
       {loading && (
