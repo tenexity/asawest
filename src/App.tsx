@@ -18,6 +18,7 @@ import Auth from "./pages/Auth";
 import Settings from "./pages/Settings";
 import Users from "./pages/Users";
 import Balance from "./pages/Balance";
+import Roadmap from "./pages/Roadmap";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -45,6 +46,7 @@ const App = () => (
               <Route path="/chat" element={<Chat />} />
               <Route path="/connect" element={<ConnectData />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/roadmap" element={<Roadmap />} />
               <Route path="/users" element={<Users />} />
             </Route>
             <Route path="*" element={<NotFound />} />
