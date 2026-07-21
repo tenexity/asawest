@@ -10,6 +10,7 @@ import {
   Plug,
   Settings,
   Droplets,
+  Map as MapIcon,
   Users as UsersIcon,
 } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -34,6 +35,7 @@ const items = [
   { title: "Agents", url: "/agents", icon: Bot },
   { title: "Ask AI", url: "/ask", icon: Sparkles },
   { title: "Connect Data", url: "/connect", icon: Plug },
+  { title: "Roadmap", url: "/roadmap", icon: MapIcon },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
